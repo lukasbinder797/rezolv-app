@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import os
 import re
 import sys
 import time
@@ -503,7 +504,6 @@ def make_handler(ctx):
             origin = self.headers.get("Origin")
             is_allowed = origin and (
                 origin in config.ALLOWED_ORIGINS
-                or config.ENV == "dev"
                 or bool(re.match(r"^https?://(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|localhost|127\.0\.0\.1)(:\d+)?$", origin))
             )
             if is_allowed:
