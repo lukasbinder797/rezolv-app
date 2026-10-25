@@ -1,0 +1,18 @@
+.git
+.github
+.agents
+.cursor
+.vscode
+node_modules
+frontend/node_modules
+__pycache__
+*.pyc
+*.zip
+*.docx
+*.make
+High-Fidelity UI Design*
+llm-council
+mcp_config.json
+backend/backups/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal

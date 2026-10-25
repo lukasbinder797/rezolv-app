@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <clipPath id="favClip">
+      <rect width="128" height="128" rx="28"/>
+    </clipPath>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0B192C"/>
+  <image href="/assets/rezolv-logo-64.png" x="8" y="8" width="112" height="112" preserveAspectRatio="xMidYMid meet" clip-path="url(#favClip)"/>
+</svg>

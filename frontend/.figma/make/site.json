@@ -1,0 +1,11 @@
+{
+  "title": "rezolc app",
+  "description": "Connects users with verified home and auto service professionals through a seamless booking platform while offering pros a SaaS CRM for managing requests and subscriptions.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

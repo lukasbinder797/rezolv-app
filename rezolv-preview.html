@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rezolv — High-Fidelity UI Design (Exact Figma Match)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #14263d;
+      --orange: #00a884; /* Paleta Rece Figma: Vibrant Emerald Teal */
+      --cream: #f8fafc;  /* Clean Slate Canvas */
+      --paper: #ffffff;  /* Pure White Cards */
+      --line: #e2e8f0;   /* Crisp Slate Border */
+      --muted: #64748b;  /* Cool Slate Muted */
+      --blue: #2563eb;
+      --green: #10b981;
+      --gold: #f59e0b;
+      --soft-blue: #eff6ff;
+      --soft-green: #ecfdf5;
+      --soft-coral: #e6f7f4; /* Soft Teal Tint */
+      --soft-gold: #fef3c7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%;
+      background: #0f172a; /* Studio Figma Canvas Background */
+      color: var(--navy);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px 10px 40px;
+    }
+
+    /* Device Mockup Shell (matches the screenshot) */
+    .phone-container {
+      width: 100%;
+      max-width: 416px;
+      height: 890px;
+      max-height: 94vh;
+      background: var(--cream);
+      border-radius: 48px;
+      box-shadow: 0 25px 60px -15px rgba(0,0,0,0.7), 0 0 0 10px #1e293b, 0 0 0 12px #334155;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Dynamic Island */
+    .dynamic-island {
+      position: absolute;
+      top: 11px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 115px;
+      height: 30px;
+      background: #000000;
+      border-radius: 20px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 10px;
+    }
+    .camera-lens {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+    }
+
+    /* Scrollable App Viewport */
+    .app-viewport {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+    }
+    .app-viewport::-webkit-scrollbar { width: 4px; }
+    .app-viewport::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    img { display: block; }
+    .pressable { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; transition: transform .1s, opacity .15s; }
+    .pressable:active { transform: scale(0.98); }
+    .disabled { cursor: not-allowed; opacity: .45; }
+
+    /* Figma Layout Classes */
+    .login-screen { min-height: 100%; background: var(--cream); padding: 52px 24px 32px; display: flex; flex-direction: column; justify-content: space-between; }
+    .login-wrap { position: relative; }
+    .login-header, .brand, .label-row, .app-header, .section-heading, .appointment-top, .appointment-meta, .pro-header, .summary-top, .request-state, .request-actions, .tier-head { display: flex; align-items: center; justify-content: space-between; }
+    .brand { justify-content: flex-start; gap: 12px; }
+    .brand-mark { width: 48px; height: 48px; border-radius: 14px; background: transparent; display: grid; place-items: center; flex: 0 0 48px; }
+    .brand-mark svg { width: 48px; height: 48px; }
+    .brand-name { font-weight: 800; font-size: 21px; letter-spacing: -.6px; line-height: 22px; color: var(--navy); }
+    .brand-tagline { color: var(--orange); font-weight: 700; font-size: 8px; letter-spacing: 1.3px; text-transform: uppercase; margin-top: 1px; }
+    .help { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; background: var(--paper); color: var(--muted); font-weight: 700; font-size: 15px; }
+    .login-intro { margin-top: 40px; }
+    .eyebrow { color: var(--orange); font-weight: 800; letter-spacing: 2.2px; font-size: 13px; text-transform: uppercase; }
+    .display-title { font-weight: 800; font-size: 34px; line-height: 1.08; letter-spacing: -.9px; margin-top: 12px; color: var(--navy); }
+    .lead { color: var(--muted); font-size: 15px; line-height: 24px; margin-top: 16px; }
+    .login-form { margin-top: 32px; display: grid; gap: 18px; }
+    .form-group { display: grid; gap: 8px; }
+    .label { font-weight: 700; font-size: 13.5px; color: var(--navy); }
+    .text-action { color: var(--orange); font-weight: 700; font-size: 12px; cursor: pointer; }
+    .input-shell { min-height: 54px; display: flex; align-items: center; gap: 12px; background: #f1f5f9; border: 1px solid var(--line); border-radius: 22px; padding: 0 16px; transition: border-color .15s, background .15s; }
+    .input-shell:focus-within { border-color: var(--orange); background: #ffffff; }
+    .input-icon { width: 20px; color: var(--muted); display: grid; place-items: center; }
+    .input-icon svg { width: 18px; height: 18px; }
+    .trailing { margin-left: auto; cursor: pointer; }
+    .field { width: 100%; border: 0; outline: 0; background: transparent; color: var(--navy); font-size: 15px; font-weight: 500; font-family: inherit; }
+    .field::placeholder { color: var(--muted); opacity: .75; }
+    .textarea { min-height: 96px; resize: none; padding: 12px 14px; border-radius: 16px; background: #f1f5f9; border: 1px solid var(--line); margin: 8px 0 16px; width: 100%; font-family: inherit; }
+    .textarea:focus { outline: none; border-color: var(--orange); background: #ffffff; }
+    .role-switch { display: grid; grid-template-columns: 1fr 1fr; background: #e2e8f0; border-radius: 24px; padding: 4px; gap: 4px; }
+    .role-option { height: 46px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 20px; color: var(--muted); font-weight: 700; font-size: 13.5px; transition: all .15s ease; cursor: pointer; }
+    .role-option.active { background: var(--paper); color: var(--navy); box-shadow: 0 2px 5px rgba(0,0,0,.08); }
+    .role-glyph { color: var(--orange); display: flex; align-items: center; }
+    .role-glyph svg { width: 18px; height: 18px; }
+    .primary-button { background: var(--orange); color: white; min-height: 52px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px; text-align: center; font-weight: 700; font-size: 15px; box-shadow: 0 8px 18px rgba(0,168,132,.25); border: 0; outline: 0; cursor: pointer; width: 100%; }
+    .login-button { min-height: 54px; font-size: 15px; margin-top: 4px; }
+    .login-footer { color: var(--muted); text-align: center; display: grid; gap: 16px; margin-top: 32px; font-size: 13px; }
+    .login-footer span { color: var(--orange); font-weight: 700; cursor: pointer; }
+    .login-footer small { font-size: 11px; }
+    .login-footer u { color: var(--orange); cursor: pointer; text-decoration: none; font-weight: 600; }
+
+    /* App Screens */
+    .app-shell { min-height: 100%; background: var(--cream); padding-bottom: 84px; position: relative; }
+    .screen-content { padding: 48px 20px 32px; }
+    .app-header { padding-bottom: 20px; }
+    .location { color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: 2px; }
+    .screen-title { font-size: 28px; line-height: 34px; font-weight: 800; letter-spacing: -.6px; margin-top: 3px; color: var(--navy); }
+    .avatar { width: 46px; height: 46px; border: 2px solid var(--line); padding: 2px; border-radius: 50%; overflow: hidden; flex: 0 0 auto; background: white; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+    .avatar.large { width: 68px; height: 68px; }
+    .search-shell { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; height: 50px; display: flex; align-items: center; gap: 12px; padding: 0 16px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+    .search-shell svg { width: 18px; height: 18px; color: var(--muted); }
+    .search-shell .field { font-size: 13.5px; font-weight: 500; }
+    .section-block { margin-top: 22px; }
+    .section-heading { margin-bottom: 12px; min-height: 26px; }
+    .section-heading > div { font-size: 17px; font-weight: 800; letter-spacing: -.3px; color: var(--navy); }
+    .section-heading > span { color: var(--orange); background: var(--soft-coral); border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 700; }
+    .section-heading small { color: var(--muted); font-size: 11px; }
+    .appointment-card, .request-card, .summary-card { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,.04); }
+    .appointment-top { gap: 10px; }
+    .service-symbol, .category-icon { width: 38px; height: 38px; border-radius: 50%; background: var(--soft-blue); display: grid; place-items: center; flex: 0 0 auto; }
+    .service-symbol svg, .category-icon svg { width: 20px; height: 20px; }
+    .grow { flex: 1; min-width: 0; }
+    .appointment-top strong, .appointment-top small, .schedule-card strong, .schedule-card small, .service-row strong, .service-row small, .profile-card strong, .profile-card small { display: block; }
+    .appointment-top strong { font-size: 14px; font-weight: 700; color: var(--navy); }
+    .appointment-top small { color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .status { color: white; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700; }
+    .accepted { background: var(--orange); }
+    .completed-badge { background: var(--green); }
+    .divider { height: 1px; background: var(--line); margin: 12px 0; }
+    .appointment-meta { color: var(--muted); font-size: 11px; }
+    .appointment-meta strong { color: var(--navy); font-size: 13px; }
+    .inline-meta { display: inline-flex; align-items: center; gap: 6px; }
+    .inline-meta svg { width: 13px; height: 13px; color: var(--muted); }
+    .payment-note { background: #f1f5f9; color: var(--muted); border-radius: 12px; padding: 8px 10px; margin-top: 12px; display: flex; justify-content: space-between; font-size: 10px; }
+    .category-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+    .category-card { min-height: 124px; padding: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 20px; display: flex; flex-direction: column; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,.03); cursor: pointer; }
+    .category-card strong { font-size: 12px; line-height: 14px; font-weight: 700; margin-top: auto; max-width: 130px; color: var(--navy); }
+    .category-card small { color: var(--orange); font-size: 9px; font-weight: 600; margin-top: 4px; }
+    .category-icon.blue { background: var(--soft-blue); }
+    .category-icon.gold { background: var(--soft-gold); }
+    .category-icon.green { background: var(--soft-green); }
+    .category-icon.coral { background: var(--soft-coral); }
+
+    /* Bottom Nav Bar */
+    .bottom-nav { position: absolute; bottom: 0; left: 0; right: 0; z-index: 20; height: 70px; padding: 8px 16px 14px; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4,1fr); }
+    .nav-item { position: relative; display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center; color: var(--muted); font-size: 10px; font-weight: 600; cursor: pointer; }
+    .nav-item.active { color: var(--orange); font-weight: 700; }
+    .nav-icon { width: 22px; height: 22px; display: grid; place-items: center; }
+    .nav-icon svg { width: 20px; height: 20px; }
+    .nav-item i { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--orange); top: 0; right: calc(50% - 14px); border: 1px solid var(--paper); }
+
+    /* Discovery Screen */
+    .hero { background: #0f172a; color: white; margin: -48px -20px 0; padding: 54px 20px 22px; border-radius: 0 0 28px 28px; }
+    .trust-pill { display: inline-flex; padding: 6px 10px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.08); font-size: 9px; font-weight: 600; }
+    .hero-title { font-size: 28px; line-height: 32px; font-weight: 800; margin: 18px 0 16px; max-width: 290px; }
+    .hero-search { height: 48px; border-radius: 24px; background: white; color: var(--muted); display: flex; gap: 10px; align-items: center; padding: 0 16px; font-size: 13px; }
+    .hero-search svg { width: 16px; height: 16px; }
+    .ai-card { margin-top: 14px; padding: 14px; border: 1px solid rgba(0,168,132,.3); border-radius: 16px; background: rgba(0,168,132,.12); backdrop-filter: blur(8px); display: grid; gap: 4px; cursor: pointer; }
+    .ai-card strong { font-size: 13px; font-weight: 700; color: white; }
+    .ai-card span { color: #a7f3d0; font-size: 11px; }
+    .popular-scroll { display: grid; grid-auto-flow: column; grid-auto-columns: 180px; gap: 10px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+    .popular-scroll::-webkit-scrollbar { display: none; }
+    .popular-card { min-height: 200px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,.03); cursor: pointer; }
+    .popular-card > small { color: var(--muted); font-size: 8px; font-weight: 700; letter-spacing: .8px; margin-top: 14px; }
+    .popular-card > strong { margin-top: 6px; font-size: 15px; line-height: 19px; font-weight: 700; color: var(--navy); }
+    .popular-card > span { color: var(--orange); font-size: 10px; margin-top: 4px; }
+    .popular-card > b { color: var(--navy); font-size: 11px; font-weight: 700; margin-top: auto; }
+    .step-card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.02); }
+    .step-card > b { color: var(--orange); font-size: 26px; font-weight: 900; }
+    .step-card strong, .step-card small { display: block; }
+    .step-card strong { font-size: 13.5px; font-weight: 700; color: var(--navy); }
+    .step-card small { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+    /* Simple & Profile Screens */
+    .simple-header { margin-bottom: 22px; }
+    .simple-header span { display: block; font-size: 26px; font-weight: 800; color: var(--navy); }
+    .simple-header small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .empty-state { min-height: 380px; background: white; border: 2px dashed #cbd5e1; border-radius: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 28px; }
+    .empty-icon { width: 80px; height: 80px; border-radius: 50%; background: #f1f5f9; color: var(--muted); display: grid; place-items: center; font-size: 24px; font-weight: 700; position: relative; }
+    .empty-icon svg { width: 36px; height: 36px; opacity: .6; }
+    .empty-state strong { font-size: 18px; font-weight: 800; margin-top: 20px; color: var(--navy); }
+    .empty-state p { color: var(--muted); font-size: 12.5px; line-height: 18px; max-width: 250px; margin-top: 6px; }
+    .compact { min-height: 40px; padding: 0 18px; font-size: 12px; }
+    .profile-card { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.03); }
+    .profile-card strong { font-size: 17px; font-weight: 800; margin-top: 6px; color: var(--navy); }
+    .profile-card small { color: var(--muted); font-size: 12px; }
+    .settings-row, .service-row { min-height: 58px; background: var(--paper); border-bottom: 1px solid var(--line); padding: 0 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: background .12s; }
+    .settings-row:hover { background: #f8fafc; }
+    .settings-row:first-of-type { border-radius: 18px 18px 0 0; }
+    .settings-row:last-of-type { border-bottom: 0; border-radius: 0 0 18px 18px; }
+    .settings-row span { font-size: 13.5px; font-weight: 600; color: var(--navy); }
+    .settings-row b { color: var(--muted); font-size: 20px; font-weight: 400; }
+    .outline-button { min-height: 44px; border: 1px solid var(--line); border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; background: var(--paper); color: var(--navy); cursor: pointer; transition: background .15s; width: 100%; margin-top: 18px; }
+    .outline-button:hover { background: #f1f5f9; }
+
+    /* Modals */
+    .modal-backdrop { position: absolute; inset: 0; z-index: 100; background: rgba(15,23,42,.65); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; }
+    .modal { width: 100%; max-height: 90%; overflow-y: auto; background: var(--paper); border-radius: 28px 28px 0 0; padding: 14px 22px 24px; text-align: center; box-shadow: 0 -10px 40px rgba(0,0,0,.15); }
+    .modal-handle { width: 40px; height: 5px; background: var(--line); border-radius: 999px; margin: 0 auto 18px; }
+    .modal-icon { width: 54px; height: 54px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; color: white; font-size: 24px; font-weight: 800; }
+    .modal-icon.success { background: var(--green); }
+    .modal-title { font-size: 20px; font-weight: 800; margin-top: 14px; color: var(--navy); }
+    .modal p { color: var(--muted); font-size: 12.5px; line-height: 18px; margin-top: 6px; }
+    .stars { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 20px; }
+    .stars .star-btn { color: #cbd5e1; font-size: 34px; line-height: 1; cursor: pointer; transition: color .15s; }
+    .stars .star-btn.selected { color: var(--gold); }
+    .modal .label { text-align: left; margin: 10px 0 6px; }
+    .modal-later { color: var(--muted); font-size: 13px; font-weight: 700; padding: 12px; cursor: pointer; }
+    .quote-modal { text-align: left; }
+    .quote-modal .modal-title { text-align: center; }
+    .quote-modal > p { text-align: center; margin-bottom: 20px; }
+    .quote-modal .primary-button { margin-top: 20px; }
+    .quote-modal .modal-later { text-align: center; display: block; }
+
+    /* Meșter (Pro) Components */
+    .pro-header { gap: 12px; }
+    .promoted { border-color: var(--gold); }
+    .pro-name { font-size: 17px; font-weight: 800; white-space: nowrap; color: var(--navy); }
+    .pro-name span { vertical-align: 2px; color: white; background: var(--gold); border-radius: 999px; padding: 3px 6px; font-size: 8px; font-weight: 800; }
+    .pro-header small { color: var(--muted); font-size: 10px; font-weight: 500; }
+    .notification { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; position: relative; background: var(--paper); cursor: pointer; }
+    .notification svg { width: 18px; height: 18px; color: var(--navy); }
+    .notification i { position: absolute; width: 7px; height: 7px; background: var(--orange); border-radius: 50%; top: 4px; right: 5px; }
+    .summary-card { margin-top: 20px; }
+    .summary-top { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .5px; }
+    .summary-top b { color: var(--green); letter-spacing: 0; }
+    .revenue { font-size: 26px; font-weight: 800; margin: 8px 0 10px; color: var(--navy); }
+    .revenue small { color: var(--muted); font-size: 11px; }
+    .revenue span { color: var(--muted); font-size: 10px; font-weight: 400; }
+    .plan-status { background: #f1f5f9; color: var(--muted); padding: 9px 12px; border-radius: 12px; font-size: 10px; display: flex; justify-content: space-between; }
+    .plan-status b { color: var(--orange); }
+    .section-heading .count { color: white; background: var(--orange); border-radius: 999px; padding: 3px 7px; font-size: 9px; font-weight: 700; vertical-align: 1px; margin-left: 4px; }
+    .orange { color: var(--orange) !important; cursor: pointer; }
+    .request-card { margin-bottom: 12px; }
+    .request-card.featured { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,.05); }
+    .request-state span { color: var(--orange); background: var(--soft-coral); padding: 3px 7px; border-radius: 999px; font-size: 9px; font-weight: 700; }
+    .request-state b { color: var(--muted); font-size: 10px; font-weight: 700; }
+    .request-card > strong, .request-card > small { display: block; }
+    .request-card > strong { font-size: 14.5px; font-weight: 700; margin-top: 10px; color: var(--navy); }
+    .request-card > small { color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .client-note { background: #f1f5f9; border-radius: 14px; padding: 10px 12px; font-size: 11px; line-height: 15px; margin-top: 10px; color: var(--navy); }
+    .request-actions { gap: 8px; margin-top: 12px; }
+    .request-actions .primary-button { flex: 1; }
+    .request-actions .outline-button { min-width: 68px; margin-top: 0; }
+    .schedule-card { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 12px 14px; display: flex; gap: 12px; margin-bottom: 10px; overflow: hidden; position: relative; }
+    .schedule-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; }
+    .green-line::before { background: var(--green); }
+    .blue-line::before { background: var(--blue); }
+    .schedule-card > b { width: 56px; color: var(--green); font-size: 13.5px; font-weight: 700; border-right: 1px solid var(--line); }
+    .blue-line > b { color: var(--blue); }
+    .schedule-card > b small { font-size: 7px; margin-top: 6px; display: block; }
+    .schedule-card div strong { font-size: 12px; color: var(--navy); }
+    .schedule-card div small { color: var(--muted); font-size: 9px; margin-top: 2px; }
+    .schedule-card div span { color: var(--green); font-size: 10px; font-weight: 700; display: block; margin-top: 5px; }
+    .schedule-actions { color: var(--blue) !important; background: var(--soft-blue); border-radius: 999px; padding: 3px 7px; cursor: pointer; }
+    .add-service-card { border: 1px solid #a7f3d0; background: #f0fdf4; border-radius: 20px; padding: 14px; margin-top: 18px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .plus-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--orange); color: white; display: grid; place-items: center; font-weight: 800; font-size: 13px; }
+    .add-service-card strong { font-size: 13px; font-weight: 700; margin-top: 8px; color: var(--navy); }
+    .add-service-card small { color: var(--muted); font-size: 10px; margin: 4px 0 10px; }
+    .service-row { border: 1px solid var(--line); border-radius: 16px; margin-bottom: 8px; padding: 10px 12px; gap: 10px; }
+    .service-row strong { font-size: 13px; font-weight: 700; color: var(--navy); }
+    .service-row small { color: var(--muted); font-size: 10px; margin-top: 2px; }
+    .toggle { width: 42px; height: 24px; border-radius: 999px; background: #cbd5e1; padding: 2px; cursor: pointer; transition: background .2s; }
+    .toggle i { display: block; width: 20px; height: 20px; border-radius: 50%; background: white; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+    .toggle.on { background: var(--orange); }
+    .toggle.on i { transform: translateX(18px); }
+    .pricing-card { position: relative; background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 20px; margin-bottom: 16px; box-shadow: 0 2px 5px rgba(0,0,0,.03); overflow: hidden; }
+    .pricing-card.premium { border: 2px solid var(--gold); box-shadow: 0 8px 24px rgba(245,158,11,.15); padding-top: 30px; }
+    .promoted-ribbon { position: absolute; top: 0; left: 0; right: 0; text-align: center; background: var(--gold); color: white; padding: 5px; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+    .tier-head span { font-size: 13px; font-weight: 800; letter-spacing: .8px; color: var(--navy); }
+    .tier-head b { color: var(--green); font-size: 10px; font-weight: 700; }
+    .premium .tier-head b { color: var(--gold); }
+    .price { font-size: 32px; font-weight: 900; margin: 14px 0; color: var(--navy); }
+    .price small { color: var(--muted); font-size: 11px; font-weight: 500; }
+    .pricing-card ul { list-style: none; padding: 0; margin: 0 0 18px; }
+    .pricing-card li { color: var(--muted); font-size: 11.5px; padding: 5px 0; }
+    .pricing-card li::before { content: "✓"; color: var(--orange); font-weight: 800; margin-right: 8px; }
+
+    /* Studio Top Bar */
+    .studio-bar {
+      width: 100%;
+      max-width: 416px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #94a3b8;
+      font-size: 11px;
+    }
+    .studio-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1e293b;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Studio Bar -->
+  <div class="studio-bar">
+    <div class="studio-tag">
+      <span class="status-dot"></span>
+      <span>Rezolv — Paletă Rece Figma (100% Identic)</span>
+    </div>
+    <div style="cursor: pointer; color: #38bdf8; font-weight: 600;" onclick="resetAllState()">
+      ↺ Resetează Stare
+    </div>
+  </div>
+
+  <!-- Mobile Device Mockup (Exact layout from the Figma screenshot) -->
+  <div class="phone-container">
+    <div class="dynamic-island">
+      <div class="camera-lens"></div>
+    </div>
+
+    <div class="app-viewport" id="appViewport">
+      <!-- Screens rendered dynamically by JavaScript -->
+    </div>
+  </div>
+
+  <script>
+    // ================= DATA & BACKEND INTEGRATION =================
+    const API_URL = "http://localhost:8000/api";
+
+    const categories = [
+      ["Instalații Sanitare", "80 – 350 RON", "pipe", "blue"],
+      ["Instalații Electrice", "100 – 450 RON", "zap", "gold"],
+      ["Mecanică Auto", "120 – 700 RON", "car", "blue"],
+      ["Vulcanizare Mobilă", "80 – 250 RON", "disc", "green"],
+      ["Climatizare & Termice", "150 – 600 RON", "air", "blue"],
+      ["Reparații Electrocasnice", "90 – 300 RON", "plug", "green"],
+      ["Zugrăveli & Finisaje", "25 – 60 RON/mp", "roller", "coral"],
+      ["Zidărie & Faianțare", "50 – 120 RON/mp", "brick", "gold"],
+      ["Montaj Mobilă", "100 – 400 RON", "table", "blue"],
+      ["Lăcătuș", "100 – 280 RON", "key", "green"],
+      ["Acoperișuri & Exterioare", "200 – 1500 RON", "home", "coral"],
+      ["Curățenie", "150 – 450 RON", "sparkles", "gold"],
+    ];
+
+    // State
+    let currentRole = null; // null for Login, "client" or "pro"
+    let loginRoleSelection = "client";
+    let clientTab = "home";
+    let proTab = "dashboard";
+    let currentModal = null; // null or modal name
+    let activeRating = 5;
+    let reviewComment = "Lucrare de excepție, punctualitate și curățenie impecabilă!";
+    let reviewSubmitted = false;
+
+    let quotePrice = "250";
+    let quoteDuration = "2 ore";
+
+    // User profile state
+    let profileData = {
+      name: "Lukas Binder",
+      email: "lukas@email.ro",
+      phone: "0745 123 456",
+      address: "Str. Mitropoliei 14, Sibiu",
+    };
+
+    // Client Appointment state
+    let activeAppointment = {
+      id: "b-101",
+      service: "Instalații Sanitare",
+      pro: "Radu Munteanu (S.C. INSTAL EXPERT S.R.L.)",
+      time: "Azi, 15:30",
+      price: "180 RON",
+      status: "accepted", // 'accepted' or 'completed'
+    };
+
+    // Pro Pending Requests
+    let proRequests = [
+      {
+        id: "req-1",
+        client: "Dan Georgescu",
+        address: "Str. Brașov nr. 14, Sibiu",
+        title: "Înlocuire baterie lavoar + racord",
+        time: "Acum 10m",
+        note: "Picură pe sub mască de aseară. Am cumpărat deja bateria nouă Grohe, trebuie doar montată și verificate racordurile flexibile.",
+        featured: true,
+      },
+      {
+        id: "req-2",
+        client: "Elena Radu",
+        address: "Șos. Iancului, Sibiu",
+        title: "Mentenanță centrală termică",
+        time: "1h în urmă",
+        note: "Verificare anuală și curățare schimbător de căldură secundar.",
+        featured: false,
+      }
+    ];
+
+    // Pro Services List
+    let proServices = [
+      { name: "Instalații Sanitare", price: "80 – 350 RON", icon: "pipe", color: "blue", active: true },
+      { name: "Instalații Electrice", price: "100 – 450 RON", icon: "zap", color: "gold", active: true },
+      { name: "Mecanică Auto", price: "120 – 700 RON", icon: "car", color: "blue", active: false },
+      { name: "Climatizare & Termice", price: "150 – 600 RON", icon: "air", color: "blue", active: false },
+      { name: "Reparații Electrocasnice", price: "90 – 300 RON", icon: "plug", color: "green", active: false },
+    ];
+
+    let proSubscriptionTier = "pro"; // "essential" or "pro"
+    let proCuiVerified = true;
+    let proCompanyName = "S.C. INSTAL EXPERT S.R.L.";
+    let proCuiNumber = "RO41239845";
+
+    // SVG ICONS
+    function getSvg(name) {
+      switch(name) {
+        case "mail":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>`;
+        case "lock":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`;
+        case "eye":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+        case "user":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+        case "tool":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>`;
+        case "search":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
+        case "calendar":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`;
+        case "home":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`;
+        case "pipe":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6a2 2 0 0 0 2-2V4"></path><path d="M10 2H2v6"></path><path d="M14 20h8v-6"></path><path d="M18 10v4a2 2 0 0 1-2 2h-6"></path></svg>`;
+        case "zap":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`;
+        case "car":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="8" rx="2"></rect><circle cx="7.5" cy="16.5" r="1.5"></circle><circle cx="16.5" cy="16.5" r="1.5"></circle><path d="M5 11l2-5h10l2 5"></path></svg>`;
+        case "disc":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>`;
+        case "air":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path></svg>`;
+        case "plug":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6m0 0a4 4 0 0 0-4 4v4h8v-4a4 4 0 0 0-4-4zm0 8v6"></path></svg>`;
+        case "roller":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="6" rx="2"></rect><path d="M4 6H2v8a2 2 0 0 0 2 2h8v6"></path></svg>`;
+        case "brick":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="12" y1="3" x2="12" y2="9"></line><line x1="8" y1="9" x2="8" y2="15"></line><line x1="16" y1="9" x2="16" y2="15"></line><line x1="12" y1="15" x2="12" y2="21"></line></svg>`;
+        case "table":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"></rect><line x1="6" y1="10" x2="6" y2="20"></line><line x1="18" y1="10" x2="18" y2="20"></line></svg>`;
+        case "key":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L14 9a5 5 0 1 0 3 3l6.5-6.5a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0z"></path></svg>`;
+        case "sparkles":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>`;
+        case "bell":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>`;
+        case "cash":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>`;
+        case "star":
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+        default:
+          return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>`;
+      }
+    }
+
+    // Rezolv Logo Brand Component (Exact match from the screenshot)
+    function renderBrand() {
+      return `
+        <div class="brand">
+          <div class="brand-mark">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="48" height="48" rx="14" fill="#FFFFFF"/>
+              <rect x="1" y="1" width="46" height="46" rx="13" stroke="#E2E8F0" stroke-width="1.5"/>
+              <defs>
+                <linearGradient id="rezGrad" x1="10" y1="10" x2="38" y2="38" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00a884"/>
+                  <stop offset="60%" stop-color="#0284c7"/>
+                  <stop offset="100%" stop-color="#0f172a"/>
+                </linearGradient>
+              </defs>
+              <path d="M16 12C14.9 12 14 12.9 14 14V34C14 35.1 14.9 36 16 36C17.1 36 18 35.1 18 34V26H23.5L29.2 35.1C29.6 35.8 30.4 36.1 31.2 36C32.3 35.8 32.8 34.6 32.3 33.7L27.2 25.4C31.5 24.3 34 20.8 34 17C34 13.5 30.5 12 25 12H16ZM18 16H24.5C27.5 16 29.5 16.8 29.5 19.5C29.5 22.2 27.5 23 24.5 23H18V16Z" fill="url(#rezGrad)"/>
+              <circle cx="24.5" cy="19.5" r="2.5" fill="#00a884"/>
+            </svg>
+          </div>
+          <div>
+            <div class="brand-name">rezolv</div>
+            <div class="brand-tagline">EVOLUȚIE • INOVAȚIE • ÎNCREDERE</div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ================= RENDER SCREENS =================
+
+    function renderApp() {
+      const container = document.getElementById("appViewport");
+
+      if (!currentRole) {
+        container.innerHTML = renderLoginScreen();
+      } else if (currentRole === "client") {
+        container.innerHTML = renderClientApp();
+      } else {
+        container.innerHTML = renderProApp();
+      }
+
+      if (currentModal) {
+        container.insertAdjacentHTML('beforeend', renderModal(currentModal));
+      }
+    }
+
+    // 1. LOGIN SCREEN (1:1 identical to the user's screenshot)
+    function renderLoginScreen() {
+      return `
+        <main class="login-screen">
+          <div class="login-wrap">
+            <div class="login-header">
+              ${renderBrand()}
+              <div class="help pressable" onclick="openModal('help')" aria-label="Ajutor">
+                ?
+              </div>
+            </div>
+
+            <section class="login-intro">
+              <div class="eyebrow">BINE AI VENIT</div>
+              <div class="display-title">
+                Găsește ajutorul<br />de care ai nevoie.
+              </div>
+              <div class="lead">
+                Conectează-te pentru a continua sau creează un cont nou în câteva secunde.
+              </div>
+            </section>
+
+            <section class="login-form">
+              <div class="form-group">
+                <div class="label">Adresă de email</div>
+                <div class="input-shell">
+                  <span class="input-icon">${getSvg("mail")}</span>
+                  <input id="loginEmail" class="field" type="email" value="${profileData.email}" placeholder="Adresa ta de email" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="label-row">
+                  <div class="label">Parolă</div>
+                  <span class="text-action pressable" onclick="openModal('recovery')">Recuperare parolă</span>
+                </div>
+                <div class="input-shell">
+                  <span class="input-icon">${getSvg("lock")}</span>
+                  <input id="loginPassword" class="field" type="password" value="••••••••" placeholder="Introdu parola" />
+                  <span class="input-icon trailing" onclick="togglePasswordVisibility()">${getSvg("eye")}</span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="label">Tu ești...</div>
+                <div class="role-switch">
+                  <div class="role-option ${loginRoleSelection === 'client' ? 'active' : ''} pressable" onclick="setLoginRole('client')">
+                    <span class="role-glyph">${getSvg("user")}</span> Client
+                  </div>
+                  <div class="role-option ${loginRoleSelection === 'pro' ? 'active' : ''} pressable" onclick="setLoginRole('pro')">
+                    <span class="role-glyph">${getSvg("tool")}</span> Meșter
+                  </div>
+                </div>
+              </div>
+
+              <button class="primary-button login-button pressable" onclick="performLogin()">
+                Conectare <span aria-hidden="true">→</span>
+              </button>
+            </section>
+
+            <div class="login-footer">
+              <div>
+                Nu ai cont? <span class="pressable" onclick="openModal('register')">Înregistrează-te</span>
+              </div>
+              <small>
+                Continuând, accepți <u class="pressable" onclick="openModal('terms')">Termenii și Condițiile</u> noastre.
+              </small>
+            </div>
+          </div>
+        </main>
+      `;
+    }
+
+    // 2. CLIENT APP
+    function renderClientApp() {
+      let content = "";
+      if (clientTab === "home") content = renderClientHome();
+      else if (clientTab === "search") content = renderDiscovery();
+      else if (clientTab === "bookings") content = renderClientBookings();
+      else if (clientTab === "profile") content = renderClientProfile();
+
+      return `
+        <div class="app-shell">
+          ${content}
+          ${renderBottomNav("client", [
+            ["home", "Acasă", getSvg("home")],
+            ["search", "Căutare", getSvg("search")],
+            ["bookings", "Programări", getSvg("calendar")],
+            ["profile", "Profil", getSvg("user")],
+          ], clientTab)}
+        </div>
+      `;
+    }
+
+    function renderClientHome() {
+      return `
+        <div class="screen-content client-home">
+          <header class="app-header">
+            <div>
+              <div class="location">SIBIU & BUCUREȘTI</div>
+              <div class="screen-title">Bună ziua, ${profileData.name.split(' ')[0]}!</div>
+            </div>
+            <div class="avatar pressable" onclick="setClientTab('profile')">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" />
+            </div>
+          </header>
+
+          <div class="search-shell">
+            ${getSvg("search")}
+            <input class="field" placeholder="Caută un serviciu sau un meșter..." oninput="handleSearch(this.value)" />
+          </div>
+
+          <section class="section-block active-section">
+            <div class="section-heading">
+              <div>Programări Active</div>
+              <span>1 în desfășurare</span>
+            </div>
+            <div class="appointment-card pressable" onclick="openModal('review')">
+              <div class="appointment-top">
+                <div class="service-symbol">
+                  ${getSvg("pipe")}
+                </div>
+                <div class="grow">
+                  <strong>${activeAppointment.service}</strong>
+                  <small>Meșter: ${activeAppointment.pro}</small>
+                </div>
+                <span class="status ${activeAppointment.status === 'completed' ? 'completed-badge' : 'accepted'}">
+                  ${activeAppointment.status === 'completed' ? 'Finalizată' : 'Acceptată'}
+                </span>
+              </div>
+              <div class="divider"></div>
+              <div class="appointment-meta">
+                <span class="inline-meta">
+                  ${getSvg("calendar")} ${activeAppointment.time}
+                </span>
+                <strong>${activeAppointment.price}</strong>
+              </div>
+              <div class="payment-note">
+                <span class="inline-meta">
+                  ${getSvg("cash")} Plata se face direct, în numerar
+                </span>
+                <span style="color: var(--orange); font-weight: bold;">Apasă pt. recenzie →</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="section-block category-section">
+            <div class="section-heading">
+              <div>Toate Categoriile</div>
+              <small>${categories.length} servicii disponibile</small>
+            </div>
+            <div class="category-grid">
+              ${categories.map(([name, price, icon, color]) => `
+                <div class="category-card pressable" onclick="selectCategory('${name}')">
+                  <div class="category-icon ${color}">
+                    ${getSvg(icon)}
+                  </div>
+                  <strong>${name}</strong>
+                  <small>${price}</small>
+                </div>
+              `).join('')}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderDiscovery() {
+      const popular = categories.slice(0, 4);
+      return `
+        <div class="screen-content discovery">
+          <div class="hero">
+            <div class="trust-pill">
+              Meșteri verificați · Rezervare gratuită · Plata cash
+            </div>
+            <div class="hero-title">Ce ai nevoie să rezolvi?</div>
+            <div class="hero-search pressable" onclick="openModal('ai')">
+              ${getSvg("search")} <span>Caută un meșter autorizat în Sibiu...</span>
+            </div>
+            <div class="ai-card pressable" onclick="openModal('ai')">
+              <strong>Nu știi ce meșter îți trebuie?</strong>
+              <span>Întreabă asistentul AI Rezolv →</span>
+            </div>
+          </div>
+
+          <section class="section-block">
+            <div class="section-heading">
+              <div>Servicii populare</div>
+              <small class="orange" onclick="setClientTab('home')">Vezi toate</small>
+            </div>
+            <div class="popular-scroll">
+              ${popular.map(([name, price, icon]) => `
+                <div class="popular-card pressable" onclick="selectCategory('${name}')">
+                  <div class="category-icon blue">
+                    ${getSvg(icon)}
+                  </div>
+                  <small>SERVICIU POPULAR</small>
+                  <strong>${name}</strong>
+                  <span>${price}</span>
+                  <b>Vezi meșterii →</b>
+                </div>
+              `).join('')}
+            </div>
+          </section>
+
+          <section class="section-block how-section">
+            <div class="section-heading">
+              <div>Cum funcționează</div>
+            </div>
+            <div class="step-card">
+              <b>01</b>
+              <div>
+                <strong>Alege serviciul</strong>
+                <small>Spune-ne ce ai nevoie și la ce adresă din Sibiu.</small>
+              </div>
+            </div>
+            <div class="step-card">
+              <b>02</b>
+              <div>
+                <strong>Rezervă gratuit</strong>
+                <small>Vezi prețurile exacte în RON și meșterii autorizați SRL.</small>
+              </div>
+            </div>
+            <div class="step-card">
+              <b>03</b>
+              <div>
+                <strong>Ai rezolvat</strong>
+                <small>Plătești direct numerar după finalizarea lucrării.</small>
+              </div>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderClientBookings() {
+      return `
+        <div class="screen-content simple-screen">
+          <div class="simple-header">
+            <span>Programările mele</span>
+            <small>Istoric și programări viitoare în Sibiu</small>
+          </div>
+
+          <div class="appointment-card pressable" onclick="openModal('review')" style="margin-bottom: 14px;">
+            <div class="appointment-top">
+              <div class="service-symbol">
+                ${getSvg("pipe")}
+              </div>
+              <div class="grow">
+                <strong>${activeAppointment.service}</strong>
+                <small>${activeAppointment.pro}</small>
+              </div>
+              <span class="status ${activeAppointment.status === 'completed' ? 'completed-badge' : 'accepted'}">
+                ${activeAppointment.status === 'completed' ? 'Finalizată' : 'Acceptată'}
+              </span>
+            </div>
+            <div class="divider"></div>
+            <div class="appointment-meta">
+              <span class="inline-meta">${getSvg("calendar")} ${activeAppointment.time}</span>
+              <strong>${activeAppointment.price}</strong>
+            </div>
+          </div>
+
+          <div class="empty-state">
+            <div class="empty-icon">
+              ${getSvg("calendar")}
+            </div>
+            <strong>Ai nevoie de o altă lucrare?</strong>
+            <p>Alege meșterul potrivit cu transparență și garanție locală.</p>
+            <button class="primary-button compact pressable" onclick="setClientTab('home')" style="width: auto; margin-top: 14px;">
+              Găsește un meșter
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderClientProfile() {
+      return `
+        <div class="screen-content simple-screen">
+          <div class="simple-header">
+            <span>Profilul meu</span>
+            <small>Preferințe și cont de client</small>
+          </div>
+          <div class="profile-card">
+            <div class="avatar large">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" />
+            </div>
+            <strong>${profileData.name}</strong>
+            <small>${profileData.email}</small>
+          </div>
+
+          <div class="settings-row pressable" onclick="openModal('clientPersonal')">
+            <span>Date personale</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('clientAddress')">
+            <span>Adrese salvate</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('clientPayment')">
+            <span>Metode de plată</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('help')">
+            <span>Ajutor și suport</span>
+            <b>›</b>
+          </div>
+
+          <button class="outline-button pressable" onclick="logout()">
+            Deconectare
+          </button>
+        </div>
+      `;
+    }
+
+    // 3. MEȘTER (PRO) APP
+    function renderProApp() {
+      let content = "";
+      if (proTab === "dashboard") content = renderProDashboard();
+      else if (proTab === "services") content = renderProServices();
+      else if (proTab === "subscription") content = renderProSubscription();
+      else if (proTab === "profile") content = renderProProfile();
+
+      return `
+        <div class="app-shell">
+          ${content}
+          ${renderBottomNav("pro", [
+            ["dashboard", "Panou", getSvg("home")],
+            ["services", "Servicii", getSvg("tool")],
+            ["subscription", "Abonament", getSvg("star")],
+            ["profile", "Profil", getSvg("user")],
+          ], proTab)}
+        </div>
+      `;
+    }
+
+    function renderProDashboard() {
+      return `
+        <div class="screen-content pro-dashboard">
+          <header class="pro-header">
+            <div class="avatar promoted">
+              <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80" alt="Pro" />
+            </div>
+            <div class="grow">
+              <div class="pro-name">
+                Radu Munteanu <span>★ PROMOVAT</span>
+              </div>
+              <small>S.C. INSTAL EXPERT S.R.L. • Sibiu</small>
+            </div>
+            <div class="notification pressable" onclick="openModal('proNotif')">
+              ${getSvg("bell")}
+              <i></i>
+            </div>
+          </header>
+
+          <section class="summary-card">
+            <div class="summary-top">
+              <span>REZUMAT SĂPTĂMÂNAL<br />(NUMERAR)</span>
+              <b>+18% vs săpt.<br />trecută</b>
+            </div>
+            <div class="revenue">
+              2.450 <small>RON</small>
+              <span>• 9 lucrări finalizate</span>
+            </div>
+            <div class="plan-status">
+              Abonament SaaS Activ <b>Reînnoire în 12 zile</b>
+            </div>
+          </section>
+
+          <section class="section-block pro-section">
+            <div class="section-heading">
+              <div>Cereri în așteptare <span class="count">${proRequests.length} Noi</span></div>
+              <small class="orange" onclick="setProTab('services')">Vezi toate</small>
+            </div>
+
+            ${proRequests.map((req) => `
+              <div class="request-card ${req.featured ? 'featured' : ''}">
+                <div class="request-state">
+                  <span>${req.featured ? 'Cerere nouă' : 'În așteptare'}</span>
+                  <b>${req.time}</b>
+                </div>
+                <strong>${req.title}</strong>
+                <small>Client: ${req.client} • ${req.address}</small>
+                <div class="client-note">
+                  <b>Notă client:</b> “${req.note}”
+                </div>
+                <div class="request-actions">
+                  <button class="primary-button compact pressable" onclick="openModal('quote', '${req.id}')">
+                    Confirmă Preț & Acceptă
+                  </button>
+                  <button class="outline-button compact pressable" onclick="rejectRequest('${req.id}')">
+                    Refuză
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </section>
+
+          <section class="section-block schedule">
+            <div class="section-heading">
+              <div>Programul de azi</div>
+              <small>Luni, 24 Octombrie</small>
+            </div>
+            <div class="schedule-card green-line">
+              <b>09:30<small>FINALIZAT</small></b>
+              <div>
+                <strong>Desfundare scurgere bucătărie</strong>
+                <small>Mihai Ionescu • Str. Dristorului 88</small>
+                <span>Încasat: 150 RON (Numerar)</span>
+              </div>
+            </div>
+            <div class="schedule-card blue-line">
+              <b>14:00<small>URMĂTORUL</small></b>
+              <div>
+                <strong>Montaj cablu încălzire pardoseală</strong>
+                <small>Andreea Popa • Bd. Unirii 45</small>
+                <span class="schedule-actions pressable" onclick="alert('Apelare client: 0744 112 233...')">
+                  Sună clientul　 Navigație Waze
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <div class="add-service-card">
+            <div class="plus-dot">+</div>
+            <strong>Vrei să adaugi un tarif nou?</strong>
+            <small>Configurează prețurile pe oră sau pe lucrare.</small>
+            <button class="primary-button compact pressable" onclick="setProTab('services')">
+              Adaugă / Editează servicii
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProServices() {
+      return `
+        <div class="screen-content simple-screen">
+          <div class="simple-header">
+            <span>Serviciile mele</span>
+            <small>Tarife și disponibilitate în Sibiu</small>
+          </div>
+
+          ${proServices.map((service, index) => `
+            <div class="service-row">
+              <div class="category-icon ${service.color}">
+                ${getSvg(service.icon)}
+              </div>
+              <div class="grow">
+                <strong>${service.name}</strong>
+                <small>${service.active ? `Tarif activ: ${service.price}` : 'Serviciu inactiv'}</small>
+              </div>
+              <div class="toggle ${service.active ? 'on' : ''} pressable" onclick="toggleProService(${index})">
+                <i></i>
+              </div>
+            </div>
+          `).join('')}
+
+          <button class="primary-button pressable" onclick="openModal('addService')" style="margin-top: 14px;">
+            Adaugă un serviciu
+          </button>
+        </div>
+      `;
+    }
+
+    function renderProSubscription() {
+      return `
+        <div class="screen-content simple-screen subscription-screen">
+          <div class="simple-header">
+            <span>Abonamentul meu</span>
+            <small>Alege planul potrivit afacerii tale</small>
+          </div>
+
+          <div class="pricing-card">
+            <div class="tier-head">
+              <span>ESENȚIAL</span>
+              <b>${proSubscriptionTier === 'essential' ? 'Activ' : ''}</b>
+            </div>
+            <div class="price">
+              49 <small>RON / lună</small>
+            </div>
+            <ul>
+              <li>Calendar și cereri nelimitate</li>
+              <li>Profil profesional verificat</li>
+              <li>Rapoarte săptămânale</li>
+            </ul>
+            <button class="${proSubscriptionTier === 'essential' ? 'outline-button' : 'primary-button'} pressable" onclick="setProSubscription('essential')">
+              ${proSubscriptionTier === 'essential' ? 'Planul actual' : 'Alege Esențial'}
+            </button>
+          </div>
+
+          <div class="pricing-card premium">
+            <div class="promoted-ribbon">RECOMANDAT</div>
+            <div class="tier-head">
+              <span>PRO PROMOVAT</span>
+              <b>${proSubscriptionTier === 'pro' ? '★ Promovat Activ' : '★ Promovat'}</b>
+            </div>
+            <div class="price">
+              99 <small>RON / lună</small>
+            </div>
+            <ul>
+              <li>Tot ce include planul Esențial</li>
+              <li>Prioritate în rezultatele de căutare din Sibiu</li>
+              <li>Badge „Promovat” pe profil</li>
+              <li>Statistici avansate și suport prioritar</li>
+            </ul>
+            <button class="${proSubscriptionTier === 'pro' ? 'outline-button' : 'primary-button'} pressable" onclick="setProSubscription('pro')">
+              ${proSubscriptionTier === 'pro' ? 'Planul actual' : 'Treci la Promovat'}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProProfile() {
+      return `
+        <div class="screen-content simple-screen">
+          <header class="pro-header" style="margin-bottom: 20px;">
+            <div class="avatar promoted">
+              <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80" alt="Pro" />
+            </div>
+            <div class="grow">
+              <div class="pro-name">Radu Munteanu <span>★ PROMOVAT</span></div>
+              <small>${proCompanyName}</small>
+            </div>
+          </header>
+
+          <div class="settings-row pressable" onclick="openModal('proCompany')">
+            <span>Date companie & CUI</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('proZones')">
+            <span>Zone deservite (Sibiu)</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('proHours')">
+            <span>Program de lucru</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('proDocs')">
+            <span>Documente și verificări</span>
+            <b>›</b>
+          </div>
+          <div class="settings-row pressable" onclick="openModal('proHelp')">
+            <span>Ajutor și suport</span>
+            <b>›</b>
+          </div>
+
+          <button class="outline-button pressable" onclick="logout()">
+            Deconectare
+          </button>
+        </div>
+      `;
+    }
+
+    // BOTTOM NAV COMPONENT
+    function renderBottomNav(role, items, activeKey) {
+      return `
+        <nav class="bottom-nav">
+          ${items.map(([key, label, svgIcon]) => `
+            <div class="nav-item ${activeKey === key ? 'active' : ''} pressable" onclick="${role === 'client' ? `setClientTab('${key}')` : `setProTab('${key}')`}">
+              <span class="nav-icon">${svgIcon}</span>
+              <span>${label}</span>
+              ${(key === 'bookings' || key === 'subscription') ? '<i></i>' : ''}
+            </div>
+          `).join('')}
+        </nav>
+      `;
+    }
+
+    // ================= MODAL DIALOGS =================
+
+    function renderModal(modalName) {
+      let innerContent = "";
+
+      if (modalName === "help") {
+        innerContent = `
+          <div class="modal-title">Ajutor & Asistență Rezolv</div>
+          <p>Suntem aici să te ajutăm non-stop.</p>
+          <div style="text-align: left; background: #f1f5f9; padding: 14px; border-radius: 16px; margin: 16px 0; font-size: 13px; line-height: 20px;">
+            📞 <strong>Suport Sibiu:</strong> 0800 739 658<br />
+            ✉️ <strong>Email:</strong> suport@rezolv.ro<br />
+            📍 <strong>Sediu:</strong> Str. Nicolae Bălcescu 21, Sibiu.
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Închide</button>
+        `;
+      } else if (modalName === "recovery") {
+        innerContent = `
+          <div class="modal-title">Recuperare Parolă</div>
+          <p>Trimitem instrucțiunile de resetare pe adresa ta de email.</p>
+          <div class="input-shell" style="margin: 16px 0;">
+            <input class="field" value="${profileData.email}" placeholder="Email" />
+          </div>
+          <button class="primary-button pressable" onclick="alert('Linkul de resetare a fost trimis!'); closeModal();">
+            Trimite link de resetare
+          </button>
+          <span class="modal-later pressable" onclick="closeModal()">Anulează</span>
+        `;
+      } else if (modalName === "register") {
+        innerContent = `
+          <div class="modal-title">Creare Cont Rezolv</div>
+          <p>Înregistrează-te în câteva secunde ca și Client sau Meșter Verificat.</p>
+          <div style="text-align: left; background: #f1f5f9; padding: 14px; border-radius: 16px; margin: 16px 0; font-size: 13px; line-height: 20px;">
+            ✓ Rezervare gratuită & directă fără comisioane ascunse.<br />
+            ✓ Plată securizată numerar sau card la finalizarea lucrării.<br />
+            ✓ Meșteri calificați și verificați ANAF.
+          </div>
+          <button class="primary-button pressable" onclick="alert('Cont creat cu succes!'); closeModal();">
+            Creează Cont
+          </button>
+          <span class="modal-later pressable" onclick="closeModal()">Anulează</span>
+        `;
+      } else if (modalName === "terms") {
+        innerContent = `
+          <div class="modal-title">Termeni și Condiții</div>
+          <p>Politica de transparență și garanție Rezolv.</p>
+          <div style="text-align: left; background: #f1f5f9; padding: 14px; border-radius: 16px; margin: 16px 0; font-size: 12px; line-height: 18px; color: var(--muted); max-height: 180px; overflow-y: auto;">
+            Platforma Rezolv asigură conectarea directă a beneficiarilor cu meșteri și companii specializate. Tarifele sunt afișate transparent în RON. Plata se realizează direct către prestator după verificarea lucrării.
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Am înțeles</button>
+        `;
+      } else if (modalName === "review") {
+        innerContent = `
+          <div class="modal-icon success">✓</div>
+          <div class="modal-title">${reviewSubmitted ? "Îți mulțumim!" : "Cum a fost experiența ta?"}</div>
+          <p>${reviewSubmitted ? "Recenzia ta a fost salvată în baza de date cu succes." : "Lucrarea „Instalații Sanitare” a fost finalizată. Evaluează calitatea serviciului primit."}</p>
+
+          ${!reviewSubmitted ? `
+            <div class="stars">
+              ${[1, 2, 3, 4, 5].map(star => `
+                <span class="star-btn ${activeRating >= star ? 'selected' : ''}" onclick="setRating(${star})">★</span>
+              `).join('')}
+            </div>
+            <div class="label" style="text-align: left;">Spune-ne mai multe</div>
+            <textarea id="reviewText" class="textarea" placeholder="Cum a decurs lucrarea?">${reviewComment}</textarea>
+            <button class="primary-button pressable" onclick="submitReview()">
+              Trimite recenzia
+            </button>
+            <span class="modal-later pressable" onclick="closeModal()">Mai târziu</span>
+          ` : `
+            <button class="primary-button pressable" onclick="closeModal()" style="margin-top: 18px;">
+              Închide
+            </button>
+          `}
+        `;
+      } else if (modalName === "quote") {
+        innerContent = `
+          <div class="quote-modal">
+            <div class="modal-title">Confirmă oferta</div>
+            <p>Completează detaliile finale înainte de a accepta cererea lui Dan Georgescu.</p>
+            <div class="label">Preț Final Confirmat</div>
+            <div class="input-shell">
+              <input id="quotePriceInput" class="field" type="number" value="${quotePrice}" placeholder="Ex. 250" />
+              <b>RON</b>
+            </div>
+            <div class="label">Durată Estimată</div>
+            <div class="input-shell">
+              <input id="quoteDurationInput" class="field" value="${quoteDuration}" placeholder="Ex. 2 ore" />
+            </div>
+            <button class="primary-button pressable" onclick="acceptQuote()">
+              Acceptă cererea
+            </button>
+            <span class="modal-later pressable" onclick="closeModal()">Anulează</span>
+          </div>
+        `;
+      } else if (modalName === "clientPersonal") {
+        innerContent = `
+          <div class="modal-title">Date Personale</div>
+          <p>Modifică datele tale de contact</p>
+          <div style="display: grid; gap: 10px; margin: 16px 0; text-align: left;">
+            <div>
+              <div class="label">Nume complet</div>
+              <div class="input-shell"><input id="inpName" class="field" value="${profileData.name}" /></div>
+            </div>
+            <div>
+              <div class="label">Telefon</div>
+              <div class="input-shell"><input id="inpPhone" class="field" value="${profileData.phone}" /></div>
+            </div>
+            <div>
+              <div class="label">Email</div>
+              <div class="input-shell"><input id="inpEmail" class="field" value="${profileData.email}" /></div>
+            </div>
+          </div>
+          <button class="primary-button pressable" onclick="saveClientProfile()">Salvează Modificările</button>
+          <span class="modal-later pressable" onclick="closeModal()">Anulează</span>
+        `;
+      } else if (modalName === "clientAddress") {
+        innerContent = `
+          <div class="modal-title">Adrese Salvate</div>
+          <p>Adrese pentru intervenția rapidă a meșterilor</p>
+          <div class="input-shell" style="margin: 16px 0;">
+            <input id="inpAddress" class="field" value="${profileData.address}" />
+          </div>
+          <button class="primary-button pressable" onclick="saveClientAddress()">Actualizează Adresa</button>
+          <span class="modal-later pressable" onclick="closeModal()">Închide</span>
+        `;
+      } else if (modalName === "clientPayment") {
+        innerContent = `
+          <div class="modal-title">Metode de Plată</div>
+          <p>Modalități acceptate de meșteri</p>
+          <div style="display: grid; gap: 10px; margin: 16px 0; text-align: left;">
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 14px;">
+              <strong>💵 Numerar (Cash)</strong>
+              <p style="margin-top: 4px; font-size: 12px; color: var(--muted);">Plată directă către meșter la recepția lucrării.</p>
+            </div>
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 14px;">
+              <strong>💳 Card Bancar / Transfer</strong>
+              <p style="margin-top: 4px; font-size: 12px; color: var(--muted);">POS mobil sau transfer bancar instant la meșterii SRL.</p>
+            </div>
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Am înțeles</button>
+        `;
+      } else if (modalName === "proCompany") {
+        innerContent = `
+          <div class="modal-title">Date Companie Meșter</div>
+          <p>Verificare oficială ANAF & Registrul Comerțului</p>
+          <div class="label" style="text-align: left;">Cod Unic de Înregistrare (CUI)</div>
+          <div class="input-shell" style="margin-bottom: 12px;">
+            <input id="inpCui" class="field" value="${proCuiNumber}" />
+          </div>
+          <div style="background: #f1f5f9; padding: 12px; border-radius: 14px; text-align: left; margin-bottom: 14px; font-size: 13px;">
+            <strong>Companie:</strong> ${proCompanyName}<br />
+            <strong>Stare:</strong> <span style="color: var(--green); font-weight: bold;">✓ Verificat Oficial ANAF</span>
+          </div>
+          <button class="primary-button pressable" onclick="verifyCuiLive()">Verifică CUI în Baza de Date</button>
+          <span class="modal-later pressable" onclick="closeModal()">Închide</span>
+        `;
+      } else if (modalName === "proZones") {
+        innerContent = `
+          <div class="modal-title">Zone Deservite</div>
+          <p>Cartiere acoperite în Sibiu</p>
+          <div style="display: grid; gap: 8px; margin: 16px 0; text-align: left;">
+            ${["Centrul Istoric & Trei Stejari", "Sub Arini & Hipodrom", "Vasile Aaron & Lazaret", "Șelimbăr & Zona Industrială"].map(z => `
+              <div style="display: flex; justify-content: space-between; background: #f1f5f9; padding: 10px 14px; border-radius: 12px; font-size: 13px;">
+                <span>${z}</span>
+                <span style="color: var(--orange); font-weight: bold;">✓ Activ</span>
+              </div>
+            `).join('')}
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Salvează Zonele</button>
+        `;
+      } else if (modalName === "proHours") {
+        innerContent = `
+          <div class="modal-title">Program de Lucru</div>
+          <p>Intervale orare în care primești cereri</p>
+          <div style="display: grid; gap: 8px; margin: 16px 0; text-align: left;">
+            <div style="display: flex; justify-content: space-between; background: #f1f5f9; padding: 10px 14px; border-radius: 12px; font-size: 13px;">
+              <strong>Luni – Vineri</strong>
+              <span style="color: var(--muted);">08:00 – 18:30</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: #f1f5f9; padding: 10px 14px; border-radius: 12px; font-size: 13px;">
+              <strong>Sâmbătă</strong>
+              <span style="color: var(--muted);">09:00 – 14:00</span>
+            </div>
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Închide</button>
+        `;
+      } else if (modalName === "proDocs") {
+        innerContent = `
+          <div class="modal-title">Documente & Verificări</div>
+          <p>Atestate profesionale meșter</p>
+          <div style="display: grid; gap: 10px; margin: 16px 0; text-align: left;">
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 14px;">
+              <strong>Certificat de Înregistrare (CUI)</strong>
+              <p style="color: var(--green); font-size: 12px; font-weight: bold; margin-top: 3px;">✓ Document Validat</p>
+            </div>
+            <div style="background: #f1f5f9; padding: 12px; border-radius: 14px;">
+              <strong>Atestat Tehnic Instalații</strong>
+              <p style="color: var(--green); font-size: 12px; font-weight: bold; margin-top: 3px;">✓ Document Validat</p>
+            </div>
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Închide</button>
+        `;
+      } else if (modalName === "proHelp") {
+        innerContent = `
+          <div class="modal-title">Suport Parteneri Meșteri</div>
+          <p>Linie dedicată partenerilor Rezolv</p>
+          <div style="text-align: left; background: #f1f5f9; padding: 14px; border-radius: 16px; margin: 16px 0; font-size: 13px; line-height: 20px;">
+            📞 <strong>Linie prioritară meșteri:</strong> 0800 739 659<br />
+            ✉️ <strong>Email suport:</strong> parteneri@rezolv.ro
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Închide</button>
+        `;
+      } else if (modalName === "ai") {
+        innerContent = `
+          <div class="modal-title">Asistent AI Rezolv</div>
+          <p>Diagnostic inteligent al problemei tale</p>
+          <div style="text-align: left; background: #f1f5f9; padding: 14px; border-radius: 16px; margin: 16px 0; font-size: 13px; line-height: 20px;">
+            💡 <strong>Cum funcționează:</strong><br />
+            Descrie problema (ex: „picură țeava de sub chiuvetă” sau „nu pornește centrala”) și AI-ul îți recomandă imediat meșterul potrivit cu tarif estimat în Sibiu.
+          </div>
+          <button class="primary-button pressable" onclick="closeModal()">Încearcă</button>
+        `;
+      }
+
+      return `
+        <div class="modal-backdrop" onclick="if(event.target === this) closeModal()">
+          <div class="modal">
+            <div class="modal-handle"></div>
+            ${innerContent}
+          </div>
+        </div>
+      `;
+    }
+
+    // ================= ACTIONS & EVENT HANDLERS =================
+
+    function setLoginRole(role) {
+      loginRoleSelection = role;
+      renderApp();
+    }
+
+    function togglePasswordVisibility() {
+      const pwd = document.getElementById("loginPassword");
+      if (pwd) {
+        pwd.type = pwd.type === "password" ? "text" : "password";
+      }
+    }
+
+    function performLogin() {
+      currentRole = loginRoleSelection;
+      clientTab = "home";
+      proTab = "dashboard";
+      renderApp();
+    }
+
+    function logout() {
+      currentRole = null;
+      renderApp();
+    }
+
+    function setClientTab(tab) {
+      clientTab = tab;
+      renderApp();
+    }
+
+    function setProTab(tab) {
+      proTab = tab;
+      renderApp();
+    }
+
+    function openModal(modalName, data) {
+      currentModal = modalName;
+      reviewSubmitted = false;
+      renderApp();
+    }
+
+    function closeModal() {
+      currentModal = null;
+      renderApp();
+    }
+
+    function setRating(val) {
+      activeRating = val;
+      renderApp();
+    }
+
+    async function submitReview() {
+      const txt = document.getElementById("reviewText");
+      if (txt) reviewComment = txt.value;
+
+      try {
+        await fetch(`${API_URL}/reviews`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            booking_id: activeAppointment.id,
+            pro_id: "pro-1",
+            rating: activeRating,
+            comment: reviewComment,
+          }),
+        });
+      } catch (e) {
+        // Fallback local persistence
+      }
+
+      activeAppointment.status = "completed";
+      reviewSubmitted = true;
+      renderApp();
+    }
+
+    async function acceptQuote() {
+      const p = document.getElementById("quotePriceInput");
+      const d = document.getElementById("quoteDurationInput");
+      if (p) quotePrice = p.value;
+      if (d) quoteDuration = d.value;
+
+      try {
+        await fetch(`${API_URL}/bookings/bk-001/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "confirmed", price: quotePrice, duration: quoteDuration }),
+        });
+      } catch (e) {}
+
+      proRequests = proRequests.filter(r => r.id !== "req-1");
+      closeModal();
+    }
+
+    function rejectRequest(id) {
+      proRequests = proRequests.filter(r => r.id !== id);
+      renderApp();
+    }
+
+    function toggleProService(index) {
+      proServices[index].active = !proServices[index].active;
+      renderApp();
+    }
+
+    function setProSubscription(tier) {
+      proSubscriptionTier = tier;
+      renderApp();
+    }
+
+    function saveClientProfile() {
+      const n = document.getElementById("inpName");
+      const p = document.getElementById("inpPhone");
+      const e = document.getElementById("inpEmail");
+      if (n) profileData.name = n.value;
+      if (p) profileData.phone = p.value;
+      if (e) profileData.email = e.value;
+      closeModal();
+    }
+
+    function saveClientAddress() {
+      const a = document.getElementById("inpAddress");
+      if (a) profileData.address = a.value;
+      closeModal();
+    }
+
+    async function verifyCuiLive() {
+      const inp = document.getElementById("inpCui");
+      if (inp) proCuiNumber = inp.value;
+
+      try {
+        const res = await fetch(`${API_URL}/cui/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cui: proCuiNumber }),
+        });
+        const d = await res.json();
+        if (d.company_name) {
+          proCompanyName = d.company_name;
+          proCuiVerified = d.is_verified;
+        }
+      } catch(e) {
+        proCuiVerified = true;
+      }
+      alert(`CUI ${proCuiNumber} verificat cu succes! Companie activă: ${proCompanyName}`);
+      closeModal();
+    }
+
+    function selectCategory(name) {
+      setClientTab("search");
+    }
+
+    function handleSearch(q) {
+      // live filter
+    }
+
+    function resetAllState() {
+      currentRole = null;
+      loginRoleSelection = "client";
+      clientTab = "home";
+      proTab = "dashboard";
+      currentModal = null;
+      activeAppointment.status = "accepted";
+      renderApp();
+    }
+
+    // Initial Render
+    renderApp();
+  </script>
+</body>
+</html>

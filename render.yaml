@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: rezolv-sibiu
+    runtime: docker
+    plan: free
+    region: frankfurt
+    autoDeploy: true
+    healthCheckPath: /api/health/live
+    envVars:
+      - key: REZOLV_ENV
+        value: production
+      - key: REZOLV_PILOT_CITY
+        value: Sibiu
+      - key: REZOLV_HOST
+        value: 0.0.0.0
+      - key: REZOLV_DATA_DIR
+        value: /var/data
+    disk:
+      name: rezolv-data
+      mountPath: /var/data
+      sizeGB: 1

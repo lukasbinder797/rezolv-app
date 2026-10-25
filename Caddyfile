@@ -1,0 +1,41 @@
+# ============================================================================
+# REZOLV Sibiu MVP — Custom Domain & Automatic SSL/TLS 1.3 Configuration (Caddy)
+# Provisions Let's Encrypt certificates automatically for rezolv.ro & staging.rezolv.ro
+# ============================================================================
+
+rezolv.ro, www.rezolv.ro {
+    @www host www.rezolv.ro
+    redir @www https://rezolv.ro{uri} permanent
+
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), geolocation=(self), microphone=()"
+        -Server
+    }
+
+    # Proxy API & Dynamic SEO/AEO routes to Python backend
+    @backend path /api/* /robots.txt /sitemap.xml /llms.txt
+    reverse_proxy @backend 127.0.0.1:8787
+
+    # Serve immutable frontend build assets with long-term caching
+    root * /srv/rezolv/frontend/dist
+    @immutable path /assets/*
+    header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+    try_files {path} /index.html
+    file_server
+}
+
+staging.rezolv.ro {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Robots-Tag "noindex, nofollow"
+    }
+    reverse_proxy 127.0.0.1:8788
+}

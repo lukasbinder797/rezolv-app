@@ -1,0 +1,23 @@
+# REZOLV Sibiu — B2B SaaS-Enabled Home & Auto Services Marketplace
+
+> Marketplace pentru meșteri și servicii auto verificate CUI în Sibiu, România.
+> Rezervare 100% gratuită pentru clienți (0% comision). Abonament SaaS 39 EUR/lună pentru profesioniști.
+
+## Categorii principale în Sibiu
+- Instalații Sanitare
+- Instalații Electrice
+- Mecanică Auto
+- Vulcanizare Mobilă
+- Climatizare & Termice
+- Reparații Electrocasnice
+- Zugrăveli & Finisaje
+- Zidărie & Faianțare
+- Montaj Mobilă
+- Lăcătuș
+- Acoperișuri & Exterioare
+- Curățenie
+
+## Cum funcționează (3-Step Estimate + Atomic Calendar Lock)
+1. Clientul descrie problema (sau folosește triajul AI în limba română).
+2. Meșterul verificat CUI (ONRC/ANAF) trimite din 2 click-uri o estimare de preț, durată și oră.
+3. Clientul acceptă estimarea -> slotul se blochează atomic în calendar și se programează remindere SMS la 24h și 2h înainte.

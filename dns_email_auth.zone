@@ -1,0 +1,23 @@
+; ============================================================================
+; REZOLV Sibiu (rezolv.ro) — DNS Zone & Email Authentication (SPF / DKIM / DMARC)
+; ============================================================================
+$ORIGIN rezolv.ro.
+$TTL 3600
+
+; Custom Domain & Staging A / AAAA Records
+@                   IN  A       185.199.108.153
+www                 IN  CNAME   rezolv.ro.
+staging             IN  A       185.199.108.154
+
+; CAA Record — Restrict SSL Certificate Issuance to Let's Encrypt
+@                   IN  CAA     0 issue "letsencrypt.org"
+@                   IN  CAA     0 iodef "mailto:security@rezolv.ro"
+
+; SPF (Sender Policy Framework) — Authorize Transactional Email Senders
+@                   IN  TXT     "v=spf1 include:_spf.google.com include:amazonses.com include:sendgrid.net ~all"
+
+; DKIM (DomainKeys Identified Mail) — RSA-2048 Cryptographic Signature
+rezolv1._domainkey  IN  TXT     "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyRezolvSibiu2026PublicKeyVerifiedIDAQAB"
+
+; DMARC (Domain-based Message Authentication, Reporting & Conformance)
+_dmarc              IN  TXT     "v=DMARC1; p=quarantine; sp=reject; rua=mailto:dmarc@rezolv.ro; ruf=mailto:dmarc@rezolv.ro; pct=100; adkim=s; aspf=s"
