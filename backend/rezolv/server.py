@@ -540,7 +540,7 @@ def make_handler(ctx):
             self._security_headers(req_id, latency_ms)
             self._cors()
             self.end_headers()
-            if raw:
+            if raw and self.command != "HEAD":
                 self.wfile.write(raw)
 
         def _send_text(self, status: int, content: str, content_type: str, req_id: str, latency_ms: float, cache_policy: str = "public, max-age=3600"):
@@ -552,7 +552,8 @@ def make_handler(ctx):
             self._security_headers(req_id, latency_ms)
             self._cors()
             self.end_headers()
-            self.wfile.write(raw)
+            if raw and self.command != "HEAD":
+                self.wfile.write(raw)
 
         def do_OPTIONS(self):
             self.send_response(204)
@@ -658,7 +659,8 @@ def make_handler(ctx):
                         )
                         self._security_headers(req_id, latency_ms)
                         self.end_headers()
-                        self.wfile.write(data)
+                        if self.command != "HEAD":
+                            self.wfile.write(data)
                         return
                 raise ApiError(404, "not_found", "Resursa nu există.")
             except ApiError as e:
@@ -704,6 +706,9 @@ def make_handler(ctx):
             finally:
                 if conn:
                     conn.close()
+
+        def do_HEAD(self):
+            self._handle("GET")
 
         def do_GET(self):
             self._handle("GET")
