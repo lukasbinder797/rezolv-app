@@ -1,8 +1,8 @@
 {
-  "title": "rezolc app",
-  "description": "Connects users with verified home and auto service professionals through a seamless booking platform while offering pros a SaaS CRM for managing requests and subscriptions.",
+  "title": "REZOLV Sibiu — Meșteri & Servicii Auto Verificate CUI (0% Comision)",
+  "description": "Găsește meșteri și servicii auto verificate CUI (ONRC/ANAF) în Sibiu și Șelimbăr. Estimare rapidă de preț și durată, blocare slot în calendar și remindere SMS anti-no-show.",
   "robots": {
-    "index": false
+    "index": true
   },
   "accessibility": {
     "addBypassLinks": false,

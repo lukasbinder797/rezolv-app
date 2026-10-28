@@ -37,10 +37,13 @@ type DialogState = {
 }
 
 const A = "/assets"
+const ASSET_CACHE_KEY = "20261028_v2"
 
 function assetUrl(file: string) {
   const map = typeof window !== "undefined" ? (window as any).__REZOLV_ASSET_MAP__ : undefined
-  return (map && map[file]) || `${A}/${file}`
+  const base = (map && map[file]) || `${A}/${file}`
+  if (base.startsWith("data:") || base.includes("?")) return base
+  return `${base}?v=${ASSET_CACHE_KEY}`
 }
 
 const categories: Service[] = [

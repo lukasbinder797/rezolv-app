@@ -649,14 +649,25 @@ def make_handler(ctx):
                         data = target.read_bytes()
                         ctype_guess, _ = mimetypes.guess_type(str(target))
                         latency_ms = (time.perf_counter() - t0) * 1000
-                        is_asset = "/assets/" in url.path
+                        etag = f'"{hashlib.md5(data).hexdigest()}"'
+                        if self.headers.get("If-None-Match") == etag:
+                            self.send_response(304)
+                            self.send_header("ETag", etag)
+                            self._security_headers(req_id, latency_ms)
+                            self.end_headers()
+                            return
+                        is_hashed_bundle = bool(re.search(r"-[a-zA-Z0-9_-]{8}\.(js|css)$", target.name))
+                        if is_hashed_bundle:
+                            cache_header = "public, max-age=31536000, immutable"
+                        elif target.name == "index.html":
+                            cache_header = "no-cache, no-store, must-revalidate"
+                        else:
+                            cache_header = "no-cache, must-revalidate"
                         self.send_response(200)
                         self.send_header("Content-Type", (ctype_guess or "text/html") + "; charset=utf-8")
                         self.send_header("Content-Length", str(len(data)))
-                        self.send_header(
-                            "Cache-Control",
-                            "public, max-age=31536000, immutable" if is_asset else "public, max-age=60",
-                        )
+                        self.send_header("Cache-Control", cache_header)
+                        self.send_header("ETag", etag)
                         self._security_headers(req_id, latency_ms)
                         self.end_headers()
                         if self.command != "HEAD":
