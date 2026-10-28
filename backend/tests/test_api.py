@@ -525,6 +525,49 @@ class TestAdmin(Api):
         self.assertEqual(self.call("GET", "/api/nope")[0], 404)
         self.assertEqual(self.call("DELETE", "/api/categories")[0], 405)
 
+    def test_tester_feedback_flow(self):
+        # 1. Validation failure (short message)
+        s, b = self.call("POST", "/api/feedback", {"rating": 5, "message": "x"})
+        self.assertEqual(s, 422)
+
+        # 2. Validation failure (invalid rating)
+        s, b = self.call("POST", "/api/feedback", {"rating": 9, "message": "Arată excelent pe telefon!"})
+        self.assertEqual(s, 422)
+
+        # 3. Successful guest feedback
+        s, b = self.call("POST", "/api/feedback", {
+            "name": "Prieten Tester",
+            "email": "prieten@test.ro",
+            "rating": 5,
+            "category": "idea",
+            "message": "Arată super pe iPhone! Adaugă și opțiunea de chat direct.",
+            "device_info": "iPhone 15 Pro • Safari"
+        })
+        self.assertEqual(s, 200)
+        self.assertEqual(b["status"], "ok")
+        self.assertTrue(b["id"].startswith("fb_"))
+
+        # 4. Successful authenticated feedback
+        client_tok = self.login("client@rezolv.ro")
+        s, b = self.call("POST", "/api/feedback", {
+            "rating": 4,
+            "category": "bug",
+            "message": "La pasul de adresă ar fi utilă completarea automată a străzii.",
+        }, token=client_tok)
+        self.assertEqual(s, 200)
+
+        # 5. Non-admin cannot list feedback
+        self.assertEqual(self.call("GET", "/api/admin/feedback", token=client_tok)[0], 403)
+
+        # 6. Admin lists feedback
+        admin_tok = self.login("admin@rezolv.ro")
+        s_adm, b_adm = self.call("GET", "/api/admin/feedback", token=admin_tok)
+        self.assertEqual(s_adm, 200)
+        self.assertGreaterEqual(b_adm["stats"]["total"], 2)
+        self.assertGreaterEqual(b_adm["stats"]["avg_rating"], 4.0)
+        self.assertIn("idea", b_adm["stats"]["by_category"])
+        self.assertIn("bug", b_adm["stats"]["by_category"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -289,6 +289,20 @@ CREATE TABLE IF NOT EXISTS request_logs (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_req_logs_created ON request_logs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS tester_feedback (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  user_name TEXT,
+  user_email TEXT,
+  role TEXT NOT NULL DEFAULT 'guest',
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  category TEXT NOT NULL DEFAULT 'general' CHECK (category IN ('bug', 'idea', 'praise', 'general')),
+  message TEXT NOT NULL,
+  device_info TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tester_feedback_created ON tester_feedback(created_at DESC);
 """
 
 

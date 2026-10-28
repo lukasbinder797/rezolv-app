@@ -2414,3 +2414,66 @@ def get_seo_structured_data(conn) -> dict:
             },
         ],
     }
+
+
+def submit_feedback(conn, user, data):
+    msg = (data.get("message") or "").strip()
+    if len(msg) < 3:
+        raise ApiError(422, "invalid_message", "Mesajul de feedback trebuie să aibă cel puțin 3 caractere.")
+    if len(msg) > 3000:
+        msg = msg[:3000]
+    rating = int(data.get("rating") or 5)
+    if rating < 1 or rating > 5:
+        raise ApiError(422, "invalid_rating", "Ratingul trebuie să fie între 1 și 5.")
+    category = (data.get("category") or "general").strip().lower()
+    if category not in ("bug", "idea", "praise", "general"):
+        category = "general"
+
+    user_id = user["id"] if user else None
+    user_name = user["name"] if user else (data.get("name") or "Tester Anonim").strip()
+    user_email = user["email"] if user else (data.get("email") or "").strip()
+    role = user["role"] if user else "guest"
+    device_info = (data.get("device_info") or "").strip()[:500]
+
+    fb_id = new_id("fb_")
+    conn.execute(
+        """INSERT INTO tester_feedback 
+           (id, user_id, user_name, user_email, role, rating, category, message, device_info, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (fb_id, user_id, user_name, user_email, role, rating, category, msg, device_info, now_ts()),
+    )
+    conn.commit()
+
+    analytics.track(conn, user_id, role, "feedback_submitted", {"rating": rating, "category": category})
+
+    return {
+        "status": "ok",
+        "id": fb_id,
+        "message": "Părerea ta a fost salvată! Mulțumim că ne ajuți să îmbunătățim REZOLV.",
+    }
+
+
+def list_admin_feedback(conn, user):
+    require_role(user, "admin")
+    rows = conn.execute(
+        """SELECT id, user_id, user_name, user_email, role, rating, category, message, device_info, created_at
+           FROM tester_feedback
+           ORDER BY created_at DESC
+           LIMIT 100"""
+    ).fetchall()
+
+    items = [dict(r) for r in rows]
+    total = len(items)
+    avg_rating = round(sum(it["rating"] for it in items) / total, 1) if total > 0 else 5.0
+    by_category = {}
+    for it in items:
+        by_category[it["category"]] = by_category.get(it["category"], 0) + 1
+
+    return {
+        "feedback": items,
+        "stats": {
+            "total": total,
+            "avg_rating": avg_rating,
+            "by_category": by_category,
+        },
+    }

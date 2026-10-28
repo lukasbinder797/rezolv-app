@@ -714,3 +714,203 @@ textarea:focus-visible,
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Tester Feedback Floating Widget & Modal
+   ========================================================================== */
+.feedback-floating-btn {
+  position: fixed;
+  bottom: 82px;
+  right: 16px;
+  z-index: 1000;
+  background: linear-gradient(135deg, #103F6F 0%, #0F5E85 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 18px rgba(16, 63, 111, 0.35);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  font-size: 13px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+.feedback-floating-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(16, 63, 111, 0.45);
+}
+.feedback-floating-btn:active {
+  transform: translateY(0);
+}
+.feedback-btn-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+.feedback-btn-text {
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+.feedback-btn-badge {
+  background: #20BDA2;
+  color: #042E28;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.feedback-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 25, 44, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.feedback-modal-card {
+  background: var(--paper, #fff);
+  border-radius: 24px;
+  padding: 22px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line, #e2e8f0);
+}
+.feedback-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+.feedback-modal-close {
+  background: #f1f5f9;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  flex: 0 0 auto;
+}
+.feedback-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.feedback-stars {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: transform 0.1s ease, color 0.1s ease;
+}
+.star-btn.active {
+  color: #f59e0b;
+}
+.star-btn:hover {
+  transform: scale(1.2);
+}
+.star-label {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+.feedback-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cat-chip {
+  border: 1px solid var(--line, #e2e8f0);
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: #334155;
+}
+.cat-chip:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+.cat-chip.selected {
+  background: #103F6F;
+  color: white;
+  border-color: #103F6F;
+}
+.feedback-textarea {
+  width: 100%;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+  background: #fff;
+  color: #0f172a;
+}
+.feedback-textarea:focus {
+  border-color: #103F6F;
+  box-shadow: 0 0 0 3px rgba(16, 63, 111, 0.12);
+}
+.feedback-input {
+  width: 100%;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  box-sizing: border-box;
+  outline: none;
+  background: #fff;
+  color: #0f172a;
+}
+.feedback-input:focus {
+  border-color: #103F6F;
+}
+.feedback-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.feedback-error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.feedback-success-state {
+  text-align: center;
+  padding: 24px 12px;
+}

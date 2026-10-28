@@ -29,6 +29,7 @@ export function SuperAdminDashboard({
   const [submitting, setSubmitting] = useState(false)
   const [cuiLookupNote, setCuiLookupNote] = useState<string | null>(null)
   const [obsData, setObsData] = useState<any>(null)
+  const [feedbackData, setFeedbackData] = useState<any>(null)
   const [sreReport, setSreReport] = useState<string | null>(null)
   const [sreRunning, setSreRunning] = useState(false)
 
@@ -44,12 +45,14 @@ export function SuperAdminDashboard({
 
   const refresh = useCallback(async () => {
     try {
-      const [res, obs] = await Promise.all([
+      const [res, obs, fb] = await Promise.all([
         api.adminOverview(),
         api.adminObservability().catch(() => null),
+        api.adminFeedback().catch(() => null),
       ])
       setData(res)
       if (obs) setObsData(obs)
+      if (fb) setFeedbackData(fb)
     } catch (e: any) {
       reportError("Eroare Super-Admin", e?.message ?? "Nu am putut încărca panoul de administrare.")
     } finally {
@@ -485,6 +488,86 @@ export function SuperAdminDashboard({
                   <div style={{ fontSize: 11, color: "var(--navy)", lineHeight: "15px" }}>{s.message_body}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="admin-panel" style={{ borderLeft: "4px solid #0F5E85" }}>
+            <div className="label-row">
+              <h3>💬 Feedback Testeri & Prieteni ({feedbackData?.stats?.total ?? 0})</h3>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Inter:Bold",
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  background: "var(--soft-blue)",
+                  color: "#0F5E85",
+                }}
+              >
+                ★ {feedbackData?.stats?.avg_rating ?? "5.0"} Rating Mediu
+              </span>
+            </div>
+            <p>
+              Sugestii, bug-uri raportate și impresii trimise direct din aplicație de către testeri.
+            </p>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, background: "#f1f5f9", padding: "4px 8px", borderRadius: 8, color: "#334155" }}>
+                💡 Idei: <strong>{feedbackData?.stats?.by_category?.idea ?? 0}</strong>
+              </span>
+              <span style={{ fontSize: 11, background: "#fef2f2", padding: "4px 8px", borderRadius: 8, color: "#991b1b" }}>
+                🐛 Bug-uri: <strong>{feedbackData?.stats?.by_category?.bug ?? 0}</strong>
+              </span>
+              <span style={{ fontSize: 11, background: "#f0fdf4", padding: "4px 8px", borderRadius: 8, color: "#166534" }}>
+                ⭐ Aprecieri: <strong>{feedbackData?.stats?.by_category?.praise ?? 0}</strong>
+              </span>
+              <span style={{ fontSize: 11, background: "#f8fafc", padding: "4px 8px", borderRadius: 8, color: "#475569" }}>
+                💬 General: <strong>{feedbackData?.stats?.by_category?.general ?? 0}</strong>
+              </span>
+            </div>
+
+            <div style={{ maxHeight: 310, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+              {(!feedbackData?.feedback || feedbackData.feedback.length === 0) ? (
+                <div style={{ padding: 18, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
+                  Niciun feedback primit încă. Prietenii pot folosi butonul plutitor „💬 Feedback” de pe telefon!
+                </div>
+              ) : (
+                feedbackData.feedback.map((fb: any) => (
+                  <div
+                    key={fb.id}
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 14,
+                      padding: "10px 12px",
+                      background: "#fff",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <div>
+                        <strong style={{ fontSize: 12, color: "var(--navy)" }}>
+                          {fb.user_name || "Tester"}
+                        </strong>
+                        <small style={{ color: "var(--muted)", marginLeft: 6, fontSize: 10 }}>
+                          ({fb.role}) {fb.user_email ? `• ${fb.user_email}` : ""}
+                        </small>
+                      </div>
+                      <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 700 }}>
+                        {"★".repeat(fb.rating)}
+                        <span style={{ color: "#cbd5e1" }}>{"★".repeat(5 - fb.rating)}</span>
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#1e293b", lineHeight: "17px", marginBottom: 6 }}>
+                      {fb.message}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)" }}>
+                      <span>
+                        Tag: <strong>{fb.category === "bug" ? "🐛 Bug" : fb.category === "idea" ? "💡 Idee" : fb.category === "praise" ? "⭐ Apreciere" : "💬 General"}</strong>
+                      </span>
+                      <span>{fb.device_info || "Dispozitiv mobil"}</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

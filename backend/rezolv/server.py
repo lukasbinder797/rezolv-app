@@ -422,6 +422,16 @@ def _admin_review(ctx, conn, user, p, b, q):
     return svc.admin_review_pro(conn, user, p["id"], b)
 
 
+@route("POST", "/api/feedback", auth=None)
+def _submit_feedback(ctx, conn, user, p, b, q):
+    return svc.submit_feedback(conn, user, b or {})
+
+
+@route("GET", "/api/admin/feedback")
+def _admin_feedback(ctx, conn, user, p, b, q):
+    return svc.list_admin_feedback(conn, user)
+
+
 # ------------------------------------------- SEO & AEO Generators (robots, sitemap, llms.txt)
 def build_robots_txt() -> str:
     domain = f"https://{config.CUSTOM_DOMAIN}"

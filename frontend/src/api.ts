@@ -396,6 +396,38 @@ export const api = {
       role,
     }).catch(() => ({ ok: false, event_id: "" }))
   },
+
+  submitFeedback(data: {
+    rating: number
+    category: "bug" | "idea" | "praise" | "general"
+    message: string
+    name?: string
+    email?: string
+    device_info?: string
+  }): Promise<{ status: string; id: string; message: string }> {
+    return request("POST", "/api/feedback", data)
+  },
+
+  adminFeedback(): Promise<{
+    feedback: Array<{
+      id: string
+      user_name: string
+      user_email: string
+      role: string
+      rating: number
+      category: string
+      message: string
+      device_info: string
+      created_at: number
+    }>
+    stats: {
+      total: number
+      avg_rating: number
+      by_category: Record<string, number>
+    }
+  }> {
+    return request("GET", "/api/admin/feedback")
+  },
 }
 
 /** Downscale a photo to keep uploads small (max 1280px, JPEG 0.8). */
