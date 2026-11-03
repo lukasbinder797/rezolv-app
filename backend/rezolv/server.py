@@ -287,6 +287,11 @@ def _pro_cal(ctx, conn, user, p, b, q):
     return svc.pro_calendar(conn, user)
 
 
+@route("POST", "/api/pro/calendar/manual-booking")
+def _pro_manual_booking(ctx, conn, user, p, b, q):
+    return svc.create_manual_pro_booking(conn, user, b)
+
+
 @route("GET", "/api/pro/categories")
 def _pro_cats(ctx, conn, user, p, b, q):
     return svc.pro_categories(conn, user)

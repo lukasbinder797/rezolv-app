@@ -51,3 +51,7 @@ High-Fidelity UI Design*
 llm-council/
 .agents/
 .cursor/
+RezolvSibiu.app/
+*.ipa
+ios/RezolvSibiu.xcodeproj/xcuserdata/
+ios/RezolvSibiu.xcodeproj/project.xcworkspace/xcuserdata/

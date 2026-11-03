@@ -352,6 +352,18 @@ export const api = {
 
   dashboard: () => request<any>("GET", "/api/pro/dashboard"),
   proCalendar: () => request<{ days: ApiCalendarDay[]; quick_free_slots: ApiQuickSlot[] }>("GET", "/api/pro/calendar"),
+  createManualProBooking: (data: {
+    client_name: string
+    client_phone: string
+    service_name?: string
+    neighborhood?: string
+    address?: string
+    price_ron?: number
+    duration_minutes?: number
+    start_at?: number
+    slot_label?: string
+    pro_notes?: string
+  }) => request<{ booking: ApiBooking }>("POST", "/api/pro/calendar/manual-booking", data),
   proCategories: () => request<{ categories: any[] }>("GET", "/api/pro/categories"),
   setCategory: (name: string, enabled: boolean) =>
     request<{ categories: any[] }>("PUT", `/api/pro/categories/${q(name)}`, { enabled }),

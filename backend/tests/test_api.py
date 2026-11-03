@@ -272,6 +272,50 @@ class TestBookingFlow(Api):
         self.assertEqual(s_res, 200, b_res)
         self.assertEqual(b_res["booking"]["scheduled_start_at"], slot_b)
 
+    def test_pro_manual_crm_phone_booking_and_sms(self):
+        """Tests CRM Phone Booking: Pro adds a phone-call client directly into calendar + auto 24h/2h SMS + conflict check."""
+        pro = self.login("mester@rezolv.ro", "pro")
+        cal = self.call("GET", "/api/pro/calendar", token=pro)[1]
+        free_slot = cal["quick_free_slots"][0]
+
+        s_crm, b_crm = self.call(
+            "POST",
+            "/api/pro/calendar/manual-booking",
+            {
+                "client_name": "Mircea Dobre",
+                "client_phone": "+40 742 889 102",
+                "service_name": "Înlocuire robinet trecere centrală",
+                "neighborhood": "Șelimbăr",
+                "address": "Str. Mihai Viteazu nr. 19, Șelimbăr",
+                "price_ron": 250,
+                "duration_minutes": 60,
+                "start_at": free_slot["start_at"],
+                "slot_label": free_slot["full_label"],
+            },
+            pro,
+        )
+        self.assertEqual(s_crm, 200, b_crm)
+        bk = b_crm["booking"]
+        self.assertEqual(bk["status"], "accepted")
+        self.assertEqual(bk["quote_price"], 250)
+        self.assertEqual(bk["client"]["name"], "Mircea Dobre")
+        self.assertGreaterEqual(len(bk["sms_reminders"]), 2)
+
+        # Attempting to manually book the exact same slot again returns 409 slot_conflict
+        s_dup, b_dup = self.call(
+            "POST",
+            "/api/pro/calendar/manual-booking",
+            {
+                "client_name": "Alt Client",
+                "client_phone": "+40 742 111 222",
+                "price_ron": 150,
+                "duration_minutes": 60,
+                "start_at": free_slot["start_at"],
+            },
+            pro,
+        )
+        self.assertEqual((s_dup, b_dup["error"]["code"]), (409, "slot_conflict"))
+
     def test_pro_sees_request_and_refusal(self):
         client, pro = self.login("elena@rezolv.ro", "client"), self.login("mester@rezolv.ro", "pro")
         _, sid = self._service()

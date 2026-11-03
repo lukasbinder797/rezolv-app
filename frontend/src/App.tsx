@@ -3274,6 +3274,21 @@ function InvestorBar({
   onSwitchRole: (role: "client" | "pro" | "admin") => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [showInstallModal, setShowInstallModal] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+    }
+    window.addEventListener("beforeinstallprompt", handler)
+    return () => window.removeEventListener("beforeinstallprompt", handler)
+  }, [])
+
+  const isNativeIosApp =
+    typeof window !== "undefined" && Boolean((window as any).webkit?.messageHandlers?.rezolvNative)
+
   const trigger = async (role: "client" | "pro" | "admin") => {
     if (busy) return
     setBusy(true)
@@ -3284,40 +3299,235 @@ function InvestorBar({
     }
   }
   return (
-    <div className="investor-switcher" role="navigation" aria-label="Comutator rapid roluri MVP Sibiu">
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <img
-          src={assetUrl("rezolv-logo-64.png")}
-          alt="REZOLV"
-          style={{ width: 18, height: 18, borderRadius: 4, objectFit: "contain" }}
-        />
-        <span className="investor-badge">PILOT SIBIU • MVP</span>
+    <>
+      <div className="investor-switcher" role="navigation" aria-label="Comutator rapid roluri MVP Sibiu">
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <img
+            src={assetUrl("rezolv-logo-64.png")}
+            alt="REZOLV"
+            style={{ width: 18, height: 18, borderRadius: 4, objectFit: "contain" }}
+          />
+          <span className="investor-badge">PILOT SIBIU • MVP</span>
+        </div>
+        <button
+          type="button"
+          className={currentRole === "client" ? "active" : ""}
+          disabled={busy}
+          onClick={() => trigger("client")}
+        >
+          👤 Client (Sibiu)
+        </button>
+        <button
+          type="button"
+          className={currentRole === "pro" ? "active" : ""}
+          disabled={busy}
+          onClick={() => trigger("pro")}
+        >
+          🔧 Meșter B2B (Calendar 2-Click)
+        </button>
+        <button
+          type="button"
+          className={currentRole === "admin" ? "active" : ""}
+          disabled={busy}
+          onClick={() => trigger("admin")}
+        >
+          🛡️ Super-Admin (White-Glove & KPI)
+        </button>
+        {!isNativeIosApp && (
+          <button
+            type="button"
+            style={{
+              background: "#0F7A52",
+              color: "#fff",
+              borderColor: "#14A06C",
+              fontWeight: 800,
+            }}
+            onClick={async () => {
+              if (deferredPrompt) {
+                deferredPrompt.prompt()
+                await deferredPrompt.userChoice
+                setDeferredPrompt(null)
+              } else {
+                setShowInstallModal(true)
+              }
+            }}
+          >
+            📲 Instalează ca App
+          </button>
+        )}
       </div>
-      <button
-        type="button"
-        className={currentRole === "client" ? "active" : ""}
-        disabled={busy}
-        onClick={() => trigger("client")}
-      >
-        👤 Client (Sibiu)
-      </button>
-      <button
-        type="button"
-        className={currentRole === "pro" ? "active" : ""}
-        disabled={busy}
-        onClick={() => trigger("pro")}
-      >
-        🔧 Meșter B2B (Calendar 2-Click)
-      </button>
-      <button
-        type="button"
-        className={currentRole === "admin" ? "active" : ""}
-        disabled={busy}
-        onClick={() => trigger("admin")}
-      >
-        🛡️ Super-Admin (White-Glove & KPI)
-      </button>
-    </div>
+      {showInstallModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(11, 30, 51, 0.72)",
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setShowInstallModal(false)}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 20,
+              maxWidth: 380,
+              width: "100%",
+              padding: "22px 20px",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+              color: "#142334",
+              fontFamily: "Inter, -apple-system, sans-serif",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <img
+                src={assetUrl("rezolv-logo-192.png")}
+                alt="REZOLV Sibiu"
+                style={{ width: 48, height: 48, borderRadius: 12, background: "#103F6F", padding: 6 }}
+              />
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#103F6F" }}>
+                  REZOLV Sibiu — Aplicație iOS / Android
+                </div>
+                <div style={{ fontSize: 12, color: "#52657A", fontWeight: 600 }}>
+                  Rulează Full-Screen pe telefon (fără browser)
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                background: "#F3F8FA",
+                border: "1px solid #D5E3EC",
+                borderRadius: 14,
+                padding: "14px 14px",
+                fontSize: 13,
+                lineHeight: 1.5,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontWeight: 800, color: "#103F6F", marginBottom: 8 }}>
+                🍎 Pe iPhone (iOS 15 / 16 / 17 / 18):
+              </div>
+              <div style={{ marginBottom: 6 }}>
+                <strong>Varianta 1 (Direct din Safari):</strong> Apasă butonul <strong>Share (Partajează ⬆️)</strong> $\rightarrow$ <strong>„Add to Home Screen” (Adaugă la ecranul principal)</strong> $\rightarrow$ <strong>Add</strong>.
+              </div>
+              <div style={{ marginBottom: 6 }}>
+                <strong>Varianta 2 (Profil iOS WebClip):</strong> Apasă butonul verde de mai jos și apoi instalează profilul din <em>Settings $\rightarrow$ Profile Downloaded</em>.
+              </div>
+              <div style={{ fontSize: 12, color: "#0F7A52", fontWeight: 700, marginTop: 8 }}>
+                ✅ Aplicația apare pe ecranul iPhone-ului cu iconița REZOLV, se deschide 100% Full-Screen (fără browser) și funcționează 24/7 fără laptop!
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const appUrl = window.location.href.split("#")[0]
+                const iconUri = assetUrl("rezolv-logo-192.png")
+                const b64Icon = iconUri.includes("base64,") ? iconUri.split("base64,")[1] : ""
+                const iconBlock = b64Icon
+                  ? `<key>Icon</key><data>${b64Icon}</data>`
+                  : ""
+                const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>FullScreen</key>
+      <true/>
+      ${iconBlock}
+      <key>IgnoreManifestScope</key>
+      <true/>
+      <key>IsRemovable</key>
+      <true/>
+      <key>Label</key>
+      <string>REZOLV Sibiu</string>
+      <key>PayloadDescription</key>
+      <string>Instaleaza aplicatia REZOLV Sibiu Full-Screen pe iPhone</string>
+      <key>PayloadDisplayName</key>
+      <string>REZOLV Sibiu — iOS App</string>
+      <key>PayloadIdentifier</key>
+      <string>ro.rezolv.sibiu.webclip.cloud</string>
+      <key>PayloadType</key>
+      <string>com.apple.webClip.managed</string>
+      <key>PayloadUUID</key>
+      <string>A1B2C3D4-E5F6-4789-9012-3456789ABCDF</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>Precomposed</key>
+      <true/>
+      <key>URL</key>
+      <string>${appUrl}</string>
+    </dict>
+  </array>
+  <key>PayloadDescription</key>
+  <string>Instaleaza aplicatia REZOLV Sibiu Full-Screen (fara browser, 24/7)</string>
+  <key>PayloadDisplayName</key>
+  <string>REZOLV Sibiu (iPhone App)</string>
+  <key>PayloadIdentifier</key>
+  <string>ro.rezolv.sibiu.profile.cloud</string>
+  <key>PayloadOrganization</key>
+  <string>REZOLV Sibiu SRL</string>
+  <key>PayloadRemovalDisallowed</key>
+  <false/>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>F1E2D3C4-B5A6-4789-9012-3456789ABCDF</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+</dict>
+</plist>`
+                const blob = new Blob([xml], { type: "application/x-apple-aspen-config" })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement("a")
+                a.href = url
+                a.download = "REZOLV-Sibiu-iPhone-App.mobileconfig"
+                document.body.appendChild(a)
+                a.click()
+                a.remove()
+              }}
+              style={{
+                width: "100%",
+                padding: "13px 16px",
+                borderRadius: 12,
+                border: "none",
+                background: "#0F7A52",
+                color: "#FFFFFF",
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: "pointer",
+                marginBottom: 8,
+              }}
+            >
+              ⚡ Descarcă Profilul iOS Full-Screen (.mobileconfig)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(false)}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: 12,
+                border: "1px solid #D5E3EC",
+                background: "#F3F8FA",
+                color: "#103F6F",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              Închide
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -3329,8 +3539,7 @@ export default function App() {
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null)
   const [isNotFound, setIsNotFound] = useState(() => {
     if (typeof window === "undefined") return false
-    const p = window.location.pathname
-    return window.location.hash === "#/404" || (p !== "/" && p !== "/index.html" && !p.endsWith(".html"))
+    return window.location.hash === "#/404"
   })
 
   useEffect(() => {

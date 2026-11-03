@@ -1214,6 +1214,123 @@ def reschedule_booking(conn, user, bid, data):
     return get_booking(conn, user, bid)
 
 
+def create_manual_pro_booking(conn, user, data):
+    """CRM Mode for Field Pros: Add a phone-call client directly into the Pro's B2B Calendar + auto-schedule 24h & 2h SMS."""
+    require_role(user, "pro")
+    v = Validator(data)
+    client_name = v.text("client_name", min=2, max=80, label="Numele clientului")
+    client_phone = v.phone("client_phone")
+    service_name = v.text("service_name", min=3, max=120, required=False, label="Lucrarea") or "Intervenție telefonică (CRM)"
+    neighborhood = v.text("neighborhood", max=60, required=False, label="Cartierul") or "Hipodrom"
+    address = v.text("address", max=180, required=False, label="Adresa") or f"{neighborhood}, Sibiu"
+    price = v.integer("price_ron", min=1, max=100000, required=False, label="Prețul estimat") or 200
+    dur_m = v.integer("duration_minutes", min=15, max=720, required=False, label="Durata (minute)") or 60
+    start_req = v.integer("start_at", min=1, max=4102444800, required=False, label="Ora de început")
+    notes = v.text("pro_notes", max=500, required=False, label="Detalii lucrare") or "Programare telefonică adăugată manual în CRM."
+    v.done()
+    if not client_phone:
+        raise bad("Numărul de telefon al clientului este obligatoriu pentru SMS.", "client_phone")
+
+    if start_req:
+        start_ts = start_req
+        end_ts = start_ts + dur_m * 60
+    else:
+        start_ts, end_ts = default_next_free_slot(conn, user["id"], dur_m)
+
+    conflict = has_slot_conflict(conn, user["id"], start_ts, end_ts)
+    if conflict:
+        raise ApiError(
+            409,
+            "slot_conflict",
+            f"Acest interval este deja ocupat în calendar de „{conflict['service_name']}” ({conflict['scheduled_for']}).",
+        )
+
+    t = now_ts()
+    # Find or create a lightweight client record for phone bookings
+    existing_client = conn.execute("SELECT * FROM users WHERE phone=? AND role='client' LIMIT 1", (client_phone,)).fetchone()
+    if existing_client:
+        client_id = existing_client["id"]
+        conn.execute(
+            "UPDATE users SET name=?, neighborhood=?, address=? WHERE id=?",
+            (client_name, neighborhood, address, client_id),
+        )
+    else:
+        client_id = new_id("u_crm_")
+        synthetic_email = f"tel.{client_id.lower()}@client.rezolv.ro"
+        conn.execute(
+            "INSERT INTO users (id,email,password_hash,role,name,phone,city,neighborhood,address,created_at,last_login_at) "
+            "VALUES (?,?,?,'client',?,?,'Sibiu',?,?,?,?)",
+            (client_id, synthetic_email, hash_password(new_id("pw_")), client_name, client_phone, neighborhood, address, t, t),
+        )
+
+    first_svc = conn.execute(
+        "SELECT * FROM pro_services WHERE pro_id=? AND active=1 ORDER BY rowid LIMIT 1",
+        (user["id"],),
+    ).fetchone()
+    svc_id = first_svc["id"] if first_svc else "s_crm"
+    category = first_svc["category"] if first_svc else "Instalații Sanitare"
+
+    dur_lbl = duration_label_of(dur_m)
+    slot_lbl = data.get("slot_label") or sms.format_ro_slot(start_ts, end_ts)
+    bid = new_id("b_")
+
+    conn.execute(
+        "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
+        "neighborhood,urgency_level,preferred_window,status,quote_price,quote_duration,duration_minutes,"
+        "pro_notes,scheduled_for,scheduled_start_at,scheduled_end_at,created_at,updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,'normal',?,'accepted',?,?,?,?,?,?,?,?,?)",
+        (
+            bid,
+            client_id,
+            user["id"],
+            svc_id,
+            category,
+            service_name,
+            f"{price} RON",
+            notes,
+            neighborhood,
+            slot_lbl,
+            price,
+            dur_lbl,
+            dur_m,
+            notes,
+            slot_lbl,
+            start_ts,
+            end_ts,
+            t,
+            t,
+        ),
+    )
+    conn.execute(
+        "INSERT INTO booking_events (booking_id,actor_id,from_status,to_status,at) VALUES (?,?,NULL,'accepted',?)",
+        (bid, user["id"], t),
+    )
+
+    p_row = conn.execute("SELECT company_name FROM pro_profiles WHERE user_id=?", (user["id"],)).fetchone()
+    pro_company = p_row["company_name"] if p_row else "Meșter REZOLV Sibiu"
+
+    sms.schedule_anti_noshow_reminders(
+        conn,
+        bid,
+        client_phone,
+        user["name"],
+        pro_company,
+        service_name,
+        price,
+        start_ts,
+        end_ts,
+    )
+    analytics.track(
+        conn,
+        user["id"],
+        "pro",
+        "pro_manual_crm_booking_created",
+        {"booking_id": bid, "price_ron": price, "neighborhood": neighborhood},
+    )
+    conn.commit()
+    return get_booking(conn, user, bid)
+
+
 def refuse_booking(conn, user, bid):
     require_role(user, "pro")
     b, _ = _transition(conn, user, bid, "refused", ("pending", "estimated"), ("pro",))

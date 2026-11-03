@@ -22,8 +22,64 @@ export function ProB2BCalendar({
   const [selectedDayIdx, setSelectedDayIdx] = useState(0)
   const [rescheduleTarget, setRescheduleTarget] = useState<ApiBooking | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [showManualModal, setShowManualModal] = useState(false)
+  const [manualClientName, setManualClientName] = useState("")
+  const [manualClientPhone, setManualClientPhone] = useState("+40 74")
+  const [manualService, setManualService] = useState("Intervenție & reparație la domiciliu")
+  const [manualNeighborhood, setManualNeighborhood] = useState("Hipodrom")
+  const [manualAddress, setManualAddress] = useState("")
+  const [manualPrice, setManualPrice] = useState(250)
+  const [manualDuration, setManualDuration] = useState(60)
+  const [manualSlotStart, setManualSlotStart] = useState<number | undefined>(quickSlots[0]?.start_at)
+  const [manualSlotLabel, setManualSlotLabel] = useState<string>(quickSlots[0]?.full_label ?? "Mâine, 10:00")
+  const [manualSaving, setManualSaving] = useState(false)
 
   const currentDay = days[selectedDayIdx] ?? days[0]
+  const sibiuZones = ["Hipodrom", "Șelimbăr", "Turnișor", "Ștrand", "Vasile Aaron", "Centru Istoric"]
+
+  const openManualForSlot = (startAt?: number, label?: string) => {
+    if (startAt) setManualSlotStart(startAt)
+    else if (quickSlots[0]) setManualSlotStart(quickSlots[0].start_at)
+    if (label) setManualSlotLabel(label)
+    else if (quickSlots[0]) setManualSlotLabel(quickSlots[0].full_label)
+    setShowManualModal(true)
+  }
+
+  const handleCreateManualBooking = async () => {
+    if (manualClientName.trim().length < 2) {
+      onError("Date incomplete", "Introdu numele clientului (ex: Mircea Dobre).")
+      return
+    }
+    if (manualClientPhone.replace(/\D/g, "").length < 9) {
+      onError("Telefon invalid", "Introdu numărul de telefon al clientului pentru reminderele SMS (24h & 2h).")
+      return
+    }
+    setManualSaving(true)
+    try {
+      await api.createManualProBooking({
+        client_name: manualClientName.trim(),
+        client_phone: manualClientPhone.trim(),
+        service_name: manualService.trim() || "Intervenție telefonică (CRM)",
+        neighborhood: manualNeighborhood,
+        address: manualAddress.trim() || `${manualNeighborhood}, Sibiu`,
+        price_ron: manualPrice,
+        duration_minutes: manualDuration,
+        start_at: manualSlotStart,
+        slot_label: manualSlotLabel,
+      })
+      setShowManualModal(false)
+      setManualClientName("")
+      setManualAddress("")
+      onNotice(
+        `Lucrare telefonică adăugată în CRM (${manualSlotLabel})! Clientul ${manualClientName} a primit SMS-ul de confirmare, iar reminderele de 24h și 2h au fost programate.`,
+      )
+      onRefresh()
+    } catch (e: any) {
+      onError("Nu am putut salva programarea", e?.message ?? "Verifică datele și încearcă din nou.")
+    } finally {
+      setManualSaving(false)
+    }
+  }
 
   const handleQuickReschedule = async (booking: ApiBooking, slot: { start_at?: number; shift_hours?: number; label: string }) => {
     setBusyId(booking.id)
@@ -120,6 +176,161 @@ export function ProB2BCalendar({
         })}
       </div>
 
+      {/* CRM Mode: Oversized Button to add a Phone Call Client + Auto SMS 24h/2h */}
+      <div style={{ margin: "10px 0 14px" }}>
+        <div
+          role="button"
+          tabIndex={0}
+          className="pressable primary-button field-btn-giant"
+          style={{
+            background: "linear-gradient(135deg, var(--navy) 0%, #195694 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            boxShadow: "0 6px 16px rgba(16, 63, 111, 0.18)",
+          }}
+          onClick={() => openManualForSlot()}
+        >
+          <span>📞 + Adaugă Lucrare Telefonică (CRM + SMS 24h/2h)</span>
+        </div>
+      </div>
+
+      {/* Fast Field CRM Form for Phone Bookings */}
+      {showManualModal && (
+        <div className="estimate-offer-box" style={{ marginBottom: 16, border: "2px solid var(--navy)" }}>
+          <div className="estimate-offer-head">
+            <span>📞 PROGRAMARE TELEFONICĂ ÎN CALENDARUL B2B (CRM)</span>
+            <span
+              className="pressable"
+              onClick={() => setShowManualModal(false)}
+              style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
+            >
+              Închide ✕
+            </span>
+          </div>
+          <p style={{ fontSize: 11, color: "var(--navy)", margin: "4px 0 10px" }}>
+            Adaugă rapid un client care te-a sunat direct. Slotul se blochează în calendar, iar REZOLV îi trimite automat SMS de confirmare + remindere la <strong>24h</strong> și <strong>2h</strong>!
+          </p>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <div>
+              <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>1. Intervalul din Calendar</small>
+              <div className="chip-row" style={{ marginTop: 4 }}>
+                {quickSlots.slice(0, 6).map((qs) => (
+                  <div
+                    key={qs.start_at}
+                    role="button"
+                    tabIndex={0}
+                    className={`pressable quick-chip ${manualSlotStart === qs.start_at ? "active" : ""}`}
+                    onClick={() => {
+                      setManualSlotStart(qs.start_at)
+                      setManualSlotLabel(qs.full_label)
+                    }}
+                  >
+                    📅 {qs.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>2. Nume Client</small>
+                <input
+                  className="field"
+                  style={{ width: "100%", marginTop: 4, padding: "9px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
+                  placeholder="Ex: Mircea Dobre"
+                  value={manualClientName}
+                  onChange={(e) => setManualClientName(e.target.value)}
+                />
+              </div>
+              <div>
+                <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>3. Telefon Client (pt. SMS)</small>
+                <input
+                  className="field"
+                  style={{ width: "100%", marginTop: 4, padding: "9px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
+                  placeholder="+40 742 889 102"
+                  value={manualClientPhone}
+                  onChange={(e) => setManualClientPhone(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>4. Cartier din Sibiu & Stradă (pt. Waze)</small>
+              <div className="chip-row" style={{ marginTop: 4 }}>
+                {sibiuZones.map((z) => (
+                  <div
+                    key={z}
+                    role="button"
+                    tabIndex={0}
+                    className={`pressable quick-chip ${manualNeighborhood === z ? "active" : ""}`}
+                    onClick={() => setManualNeighborhood(z)}
+                  >
+                    📍 {z}
+                  </div>
+                ))}
+              </div>
+              <input
+                className="field"
+                style={{ width: "100%", marginTop: 6, padding: "8px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
+                placeholder={`Adresă opțională (ex: Str. Rahovei nr. 14, ${manualNeighborhood})`}
+                value={manualAddress}
+                onChange={(e) => setManualAddress(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>5. Lucrare & Preț Estimat (RON)</small>
+              <input
+                className="field"
+                style={{ width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
+                placeholder="Ex: Înlocuire robinet trecere / Revizie centrală"
+                value={manualService}
+                onChange={(e) => setManualService(e.target.value)}
+              />
+              <div className="chip-row" style={{ marginTop: 6 }}>
+                {[150, 200, 250, 350, 500].map((p) => (
+                  <div
+                    key={p}
+                    role="button"
+                    tabIndex={0}
+                    className={`pressable quick-chip ${manualPrice === p ? "active" : ""}`}
+                    onClick={() => setManualPrice(p)}
+                  >
+                    💰 {p} RON
+                  </div>
+                ))}
+                {[60, 90, 120].map((m) => (
+                  <div
+                    key={m}
+                    role="button"
+                    tabIndex={0}
+                    className={`pressable quick-chip ${manualDuration === m ? "active" : ""}`}
+                    onClick={() => setManualDuration(m)}
+                  >
+                    ⏱️ {m} min
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div
+              role="button"
+              tabIndex={0}
+              className="pressable primary-button field-btn-giant"
+              style={{ marginTop: 6 }}
+              onClick={manualSaving ? undefined : handleCreateManualBooking}
+            >
+              {manualSaving
+                ? "Se blochează slotul și se trimite SMS..."
+                : `✓ Blochează ${manualSlotLabel} & Trimite SMS Clientului`}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 2-Click Instant Reschedule Bar when an appointment is tapped */}
       {rescheduleTarget && (
         <div className="estimate-offer-box" style={{ marginBottom: 14 }}>
@@ -174,15 +385,29 @@ export function ProB2BCalendar({
         {currentDay.slots.map((slot) => {
           const bk = slot.booking
           if (!bk) {
+            const isPast = slot.status === "past"
             return (
-              <div key={slot.hour} className="cal-slot-row slot-free">
+              <div
+                key={slot.hour}
+                role={isPast ? undefined : "button"}
+                tabIndex={isPast ? -1 : 0}
+                className={`cal-slot-row slot-free ${isPast ? "" : "pressable"}`}
+                style={isPast ? undefined : { cursor: "pointer" }}
+                onClick={
+                  isPast
+                    ? undefined
+                    : () => openManualForSlot(slot.start_at, slot.label || `${currentDay.day_name}, ${slot.hour}`)
+                }
+              >
                 <div className="cal-slot-hour">{slot.hour}</div>
                 <div className="grow">
                   <small style={{ color: "var(--muted)", fontSize: 11 }}>
-                    {slot.status === "past" ? "Interval trecut" : "Slot disponibil în calendar"}
+                    {isPast ? "Interval trecut" : "Slot disponibil — atinge pentru programare telefonică"}
                   </small>
                 </div>
-                <span style={{ fontSize: 10, color: "var(--aqua)", fontFamily: "Inter:Bold" }}>LIBER</span>
+                <span style={{ fontSize: 10, color: "var(--aqua)", fontFamily: "Inter:Bold" }}>
+                  {isPast ? "TRECUT" : "+ REZERVĂ"}
+                </span>
               </div>
             )
           }
