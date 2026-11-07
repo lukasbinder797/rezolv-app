@@ -1486,6 +1486,343 @@ class Test100ClientProABSimulations(unittest.TestCase):
         self.assertEqual(s_obs, 200)
         self.assertEqual(b_obs["performance"]["error_rate_5xx_pct"], 0.0)
 
+    def test_101_client_first_login_mandatory_onboarding_single_field_address_phone_email(self):
+        """Simulates a newly registered client completing first-login onboarding with a single
+        free-text residential address, phone number, and email address."""
+        s_reg, b_reg, _ = self.req(
+            "POST",
+            "/api/auth/register",
+            {
+                "name": "Andreea Munteanu",
+                "email": "andreea.onboard@sibiu.ro",
+                "password": "Password123",
+                "role": "client",
+            },
+        )
+        self.assertEqual(s_reg, 200)
+        tok = b_reg["token"]
+        self.assertFalse(b_reg["user"].get("address"))
+
+        # Complete mandatory onboarding step (single free-text residential address + phone + email)
+        s_onb, b_onb, _ = self.req(
+            "PATCH",
+            "/api/me",
+            {
+                "name": "Andreea Munteanu",
+                "address": "Str. Calea Dumbrăvii nr. 58, Bl. 4, Ap. 12, Hipodrom, Sibiu",
+                "phone": "+40 745 889 123",
+                "email": "andreea.onboard@sibiu.ro",
+            },
+            token=tok,
+        )
+        self.assertEqual(s_onb, 200)
+        self.assertEqual(b_onb["user"]["address"], "Str. Calea Dumbrăvii nr. 58, Bl. 4, Ap. 12, Hipodrom, Sibiu")
+        self.assertEqual(b_onb["user"]["phone"], "+40 745 889 123")
+        self.assertEqual(b_onb["user"]["email"], "andreea.onboard@sibiu.ro")
+        self.assertEqual(b_onb["user"]["neighborhood"], "Hipodrom")
+
+    def test_102_client_settings_modify_residential_address_phone_and_email_with_uniqueness_validation(self):
+        """Simulates modifying residential address, phone number, and email from Client Settings,
+        including duplicate email rejection (409), invalid input rejection (422), and re-login."""
+        s_reg, b_reg, _ = self.req(
+            "POST",
+            "/api/auth/register",
+            {
+                "name": "Cosmin Lazăr",
+                "email": "cosmin.initial@sibiu.ro",
+                "password": "Password123",
+                "role": "client",
+                "address": "Str. Oașa nr. 5, Hipodrom, Sibiu",
+                "phone": "+40 722 111 222",
+            },
+        )
+        self.assertEqual(s_reg, 200)
+        tok = b_reg["token"]
+
+        # 1. Attempting to change email to an already taken email -> 409 email_taken
+        s_dup, b_dup, _ = self.req(
+            "POST" if False else "PATCH",
+            "/api/me",
+            {"name": "Cosmin Lazăr", "email": "client@rezolv.ro"},
+            token=tok,
+        )
+        self.assertEqual((s_dup, b_dup["error"]["code"]), (409, "email_taken"))
+
+        # 2. Attempting invalid email, invalid phone, or >200 char address -> 422 validation_error
+        s_inv_email, _, _ = self.req("PATCH", "/api/me", {"name": "Cosmin Lazăr", "email": "not-an-email"}, token=tok)
+        self.assertEqual(s_inv_email, 422)
+        s_inv_phone, _, _ = self.req("PATCH", "/api/me", {"name": "Cosmin Lazăr", "phone": "abc"}, token=tok)
+        self.assertEqual(s_inv_phone, 422)
+        s_inv_addr, _, _ = self.req("PATCH", "/api/me", {"name": "Cosmin Lazăr", "address": "X" * 205}, token=tok)
+        self.assertEqual(s_inv_addr, 422)
+
+        # 3. Valid update of residential address, phone, and email from Settings
+        s_upd, b_upd, _ = self.req(
+            "PATCH",
+            "/api/me",
+            {
+                "name": "Cosmin Lazăr",
+                "address": "Str. Mihai Viteazu nr. 14, Bl. P2, Ap. 9, Șelimbăr, Sibiu",
+                "phone": "+40 749 333 444",
+                "email": "cosmin.updated@sibiu.ro",
+            },
+            token=tok,
+        )
+        self.assertEqual(s_upd, 200)
+        self.assertEqual(b_upd["user"]["address"], "Str. Mihai Viteazu nr. 14, Bl. P2, Ap. 9, Șelimbăr, Sibiu")
+        self.assertEqual(b_upd["user"]["neighborhood"], "Șelimbăr")
+        self.assertEqual(b_upd["user"]["phone"], "+40 749 333 444")
+        self.assertEqual(b_upd["user"]["email"], "cosmin.updated@sibiu.ro")
+
+        # 4. Verify login works with the new email
+        s_log, b_log, _ = self.req(
+            "POST",
+            "/api/auth/login",
+            {"email": "cosmin.updated@sibiu.ro", "password": "Password123", "role": "client"},
+        )
+        self.assertEqual((s_log, b_log["user"]["address"]), (200, "Str. Mihai Viteazu nr. 14, Bl. P2, Ap. 9, Șelimbăr, Sibiu"))
+
+    def test_103_ab_booking_variant_a_prefilled_account_address_vs_variant_b_custom_intervention_address(self):
+        """A/B test of booking address behavior:
+        Variant A: Booking uses pre-filled account residential address & phone automatically without typing.
+        Variant B: Client clicks 'Folosește altă adresă pentru această intervenție' and overrides address for that job only."""
+        binder_pro = self.req("GET", "/api/professionals?q=binder")[1]["professionals"][0]
+        svc_id = binder_pro["services"][0]["id"]
+
+        # Set a known residential address & phone on client account
+        self.req(
+            "PATCH",
+            "/api/me",
+            {
+                "name": "Lukas Client",
+                "address": "Str. Nicolae Iorga nr. 42, Bl. 12, Ap. 8, Hipodrom, Sibiu",
+                "phone": "+40 721 555 010",
+            },
+            token=self.client_tok,
+        )
+
+        # Variant A: Create booking without passing address/phone -> uses account's saved address & phone
+        s_a, b_a, _ = self.req(
+            "POST",
+            "/api/bookings",
+            {"service_id": svc_id, "description": "Varianta A: intervenție la adresa de reședință din cont."},
+            token=self.client_tok,
+        )
+        self.assertEqual(s_a, 200)
+        self.assertEqual(b_a["booking"]["client"]["address"], "Str. Nicolae Iorga nr. 42, Bl. 12, Ap. 8, Hipodrom, Sibiu")
+        self.assertEqual(b_a["booking"]["client_address"], "Str. Nicolae Iorga nr. 42, Bl. 12, Ap. 8, Hipodrom, Sibiu")
+
+        # Variant B: Create booking with a custom intervention address ("Folosește altă adresă pentru această intervenție")
+        s_b, b_b, _ = self.req(
+            "POST",
+            "/api/bookings",
+            {
+                "service_id": svc_id,
+                "description": "Varianta B: intervenție la apartamentul părinților din Turnișor.",
+                "address": "Str. Alba Iulia nr. 90, Bl. 20, Ap. 4, Turnișor, Sibiu",
+                "phone": "+40 740 999 888",
+            },
+            token=self.client_tok,
+        )
+        self.assertEqual(s_b, 200)
+        self.assertEqual(b_b["booking"]["client"]["address"], "Str. Alba Iulia nr. 90, Bl. 20, Ap. 4, Turnișor, Sibiu")
+        self.assertEqual(b_b["booking"]["client_address"], "Str. Alba Iulia nr. 90, Bl. 20, Ap. 4, Turnișor, Sibiu")
+        self.assertEqual(b_b["booking"]["neighborhood"], "Turnișor")
+
+        # Verify client's permanent residential address in /api/me was NOT overwritten by Variant B
+        me = self.req("GET", "/api/me", token=self.client_tok)[1]["user"]
+        self.assertEqual(me["address"], "Str. Nicolae Iorga nr. 42, Bl. 12, Ap. 8, Hipodrom, Sibiu")
+
+    def test_104_pro_receives_exact_client_address_for_waze_and_maps_routing_on_pending_and_accepted(self):
+        """Verifies tradesperson (Meșter) receives the exact intervention address on both pending requests
+        and accepted schedule items for Waze / Google Maps routing."""
+        binder_pro = self.req("GET", "/api/professionals?q=binder")[1]["professionals"][0]
+        svc_id = binder_pro["services"][0]["id"]
+        exact_addr = "Str. Școala de Înot nr. 18, Ap. 3, Sub Arini, Sibiu"
+
+        bk = self.req(
+            "POST",
+            "/api/bookings",
+            {
+                "service_id": svc_id,
+                "description": "Verificare presiune centrală și robineți calorifer.",
+                "address": exact_addr,
+            },
+            token=self.client_tok,
+        )[1]["booking"]
+        bid = bk["id"]
+
+        # Pro sees exact address immediately in pending requests
+        dash_pending = self.req("GET", "/api/pro/dashboard", token=self.binder_tok)[1]["pending"]
+        matched_pending = next((x for x in dash_pending if x["id"] == bid), None)
+        self.assertIsNotNone(matched_pending)
+        self.assertEqual(matched_pending["client"]["address"], exact_addr)
+        self.assertEqual(matched_pending["client_address"], exact_addr)
+
+        # After estimate + client accept, Pro sees exact address in schedule and calendar
+        self.req("POST", f"/api/bookings/{bid}/estimate", {"price": 190, "duration_minutes": 60}, token=self.binder_tok)
+        self.req("POST", f"/api/bookings/{bid}/accept-estimate", {}, token=self.client_tok)
+        dash_sched = self.req("GET", "/api/pro/dashboard", token=self.binder_tok)[1]["schedule"]
+        matched_sched = next((x for x in dash_sched if x["id"] == bid), None)
+        self.assertIsNotNone(matched_sched)
+        self.assertEqual(matched_sched["client"]["address"], exact_addr)
+
+    def test_105_gps_helpers_removed_and_clean_ai_discovery_and_pro_only_routing_verified(self):
+        """Verifies frontend code invariants:
+        - LocationMapPicker.tsx is deleted
+        - calendarAndGeo.ts has no GPS localization helpers while keeping .ics and Google Calendar exports
+        - Discovery AI assistant has no quickExamples suggestion chips
+        - Client BookingCard has no Hartă GPS button, while ProDashboard & ProB2BCalendar have Rută Waze & Rută Maps"""
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[2]
+        self.assertFalse((root / "frontend" / "src" / "components" / "LocationMapPicker.tsx").exists())
+
+        cal_geo = (root / "frontend" / "src" / "utils" / "calendarAndGeo.ts").read_text(encoding="utf-8")
+        self.assertNotIn("locateUserOnMap", cal_geo)
+        self.assertNotIn("reverseGeocodeSibiu", cal_geo)
+        self.assertNotIn("SIBIU_MAP_BOUNDS", cal_geo)
+        self.assertIn("addBookingToNativeCalendar", cal_geo)
+        self.assertIn("buildGoogleCalendarUrl", cal_geo)
+
+        app_tsx = (root / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+        self.assertNotIn("LocationMapPicker", app_tsx)
+        self.assertNotIn("quickExamples", app_tsx)
+        self.assertNotIn("Sau testează rapid un scenariu", app_tsx)
+        self.assertNotIn("Hartă GPS", app_tsx)
+        self.assertIn("ClientOnboardingModal", app_tsx)
+        self.assertIn("Folosește altă adresă pentru această intervenție", app_tsx)
+        self.assertIn("Rută Waze", app_tsx)
+        self.assertIn("Rută Maps", app_tsx)
+
+    def test_106_seeded_and_crm_bookings_expose_full_street_address_phone_and_email_in_pro_dashboard_and_calendar(self):
+        """Regression test for SQLite b.* column-shadowing bug and CRM manual booking address/phone persistence."""
+        # 1. Check pro_dashboard schedule & calendar slots have full street addresses and phones (not None or neighborhood-only)
+        s_dash, dash, _ = self.req("GET", "/api/pro/dashboard", token=self.binder_tok)
+        self.assertEqual(s_dash, 200)
+        for item in dash["schedule"]:
+            self.assertTrue(item.get("client_address"), f"Missing client_address on schedule item {item['id']}")
+            self.assertIn("nr.", item["client_address"])
+            self.assertTrue(item["client"].get("phone"), f"Missing client.phone on accepted schedule item {item['id']}")
+            self.assertTrue(item["client"].get("email"), f"Missing client.email on schedule item {item['id']}")
+
+        # 2. Create a manual CRM phone booking with explicit address & client_phone
+        free_slot = dash["calendar"]["quick_free_slots"][0]["start_at"]
+        s_man, b_man, _ = self.req(
+            "POST",
+            "/api/pro/calendar/manual-booking",
+            {
+                "client_name": "Vasile Cârțan",
+                "client_phone": "+40 744 600 700",
+                "service_name": "Reparație țeavă colțar",
+                "description": "Programare telefonică CRM cu adresă completă.",
+                "neighborhood": "Lazaret",
+                "address": "Str. Pompiliu Onofrei nr. 9, Lazaret, Sibiu",
+                "start_at": free_slot,
+                "duration_minutes": 60,
+                "price_ron": 220,
+            },
+            token=self.binder_tok,
+        )
+        self.assertEqual(s_man, 200)
+        man_bk = b_man["booking"]
+        self.assertEqual(man_bk["client_address"], "Str. Pompiliu Onofrei nr. 9, Lazaret, Sibiu")
+        self.assertEqual(man_bk["client"]["address"], "Str. Pompiliu Onofrei nr. 9, Lazaret, Sibiu")
+        self.assertEqual(man_bk["client_phone"], "+40 744 600 700")
+        self.assertEqual(man_bk["client"]["phone"], "+40 744 600 700")
+
+        # 3. Verify pro_calendar also returns the exact street address and phone on the slot
+        s_cal, cal, _ = self.req("GET", "/api/pro/calendar", token=self.binder_tok)
+        self.assertEqual(s_cal, 200)
+        slot_bookings = [ s["booking"] for d in cal["days"] for s in d["slots"] if s.get("booking") ]
+        matched_cal = next((x for x in slot_bookings if x["id"] == man_bk["id"]), None)
+        self.assertIsNotNone(matched_cal)
+        self.assertEqual(matched_cal["client_address"], "Str. Pompiliu Onofrei nr. 9, Lazaret, Sibiu")
+        self.assertEqual(matched_cal["client_phone"], "+40 744 600 700")
+
+    def test_107_updating_client_address_in_settings_syncs_active_residential_bookings_without_overwriting_custom_address(self):
+        """Verifies that modifying residential address/phone in Settings updates active residential bookings
+        while preserving bookings that used a custom intervention address ('Folosește altă adresă')."""
+        s_reg, b_reg, _ = self.req(
+            "POST",
+            "/api/auth/register",
+            {
+                "name": "Mircea Sibianu",
+                "email": "mircea.sync@sibiu.ro",
+                "password": "Password123",
+                "role": "client",
+                "address": "Str. Semaforului nr. 10, Bl. 2, Ap. 5, Vasile Aaron, Sibiu",
+                "phone": "+40 741 100 200",
+            },
+        )
+        self.assertEqual(s_reg, 200)
+        tok = b_reg["token"]
+        binder_pro = self.req("GET", "/api/professionals?q=binder")[1]["professionals"][0]
+        svc_id = binder_pro["services"][0]["id"]
+
+        # Booking 1: Residential address (pre-filled from account)
+        bk_home = self.req(
+            "POST",
+            "/api/bookings",
+            {
+                "service_id": svc_id,
+                "description": "Lucrare la adresa de domiciliu din cont.",
+                "address": "Str. Semaforului nr. 10, Bl. 2, Ap. 5, Vasile Aaron, Sibiu",
+                "phone": "+40 741 100 200",
+            },
+            token=tok,
+        )[1]["booking"]
+
+        # Booking 2: Custom intervention address ("Folosește altă adresă pentru această intervenție")
+        bk_custom = self.req(
+            "POST",
+            "/api/bookings",
+            {
+                "service_id": svc_id,
+                "description": "Lucrare la biroul din Centru Istoric.",
+                "address": "Str. Nicolae Bălcescu nr. 12, Centru Istoric, Sibiu",
+                "phone": "+40 799 888 777",
+            },
+            token=tok,
+        )[1]["booking"]
+
+        # Client changes residential address & phone in Settings
+        new_home = "Str. Doamna Stanca nr. 35, Bl. 1, Ap. 19, Șelimbăr, Sibiu"
+        self.req(
+            "PATCH",
+            "/api/me",
+            {"name": "Mircea Sibianu", "address": new_home, "phone": "+40 741 999 000"},
+            token=tok,
+        )
+
+        # Verify Booking 1 synced to new residential address, while Booking 2 kept its custom address
+        b1_after = self.req("GET", f"/api/bookings/{bk_home['id']}", token=tok)[1]["booking"]
+        b2_after = self.req("GET", f"/api/bookings/{bk_custom['id']}", token=tok)[1]["booking"]
+        self.assertEqual(b1_after["client_address"], new_home)
+        self.assertEqual(b1_after["neighborhood"], "Șelimbăr")
+        self.assertEqual(b2_after["client_address"], "Str. Nicolae Bălcescu nr. 12, Centru Istoric, Sibiu")
+        self.assertEqual(b2_after["neighborhood"], "Centru Istoric")
+
+    def test_108_custom_address_with_default_neighborhood_infers_zone_from_single_free_text_address(self):
+        """Verifies that sending a single free-text custom address containing a Sibiu neighborhood overrides
+        any default account neighborhood passed alongside it."""
+        binder_pro = self.req("GET", "/api/professionals?q=binder")[1]["professionals"][0]
+        svc_id = binder_pro["services"][0]["id"]
+        s, b, _ = self.req(
+            "POST",
+            "/api/bookings",
+            {
+                "service_id": svc_id,
+                "description": "Intervenție la altă adresă cu un singur câmp de text liber.",
+                "neighborhood": "Hipodrom",
+                "address": "Str. Calea Cisnădiei nr. 88, Arhitecților, Sibiu",
+            },
+            token=self.client_tok,
+        )
+        self.assertEqual(s, 200)
+        self.assertEqual(b["booking"]["neighborhood"], "Arhitecților")
+        self.assertEqual(b["booking"]["client_address"], "Str. Calea Cisnădiei nr. 88, Arhitecților, Sibiu")
+
 
 if __name__ == "__main__":
     unittest.main()
+

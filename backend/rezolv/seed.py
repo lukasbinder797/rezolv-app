@@ -243,11 +243,14 @@ def seed(conn):
         s = svc(pro, category, idx)
         bid = new_id("b_")
         created = t - ago_min * 60
+        c_row = conn.execute("SELECT address, phone FROM users WHERE id=?", (clients[client_email],)).fetchone()
+        c_addr = c_row["address"] if c_row else None
+        c_phone = c_row["phone"] if c_row else None
         conn.execute(
             "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
-            "neighborhood,urgency_level,preferred_window,status,quote_price,quote_duration,duration_minutes,"
+            "neighborhood,client_address,client_phone,urgency_level,preferred_window,status,quote_price,quote_duration,duration_minutes,"
             "pro_notes,scheduled_for,scheduled_start_at,scheduled_end_at,created_at,updated_at,completed_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 bid,
                 clients[client_email],
@@ -258,6 +261,8 @@ def seed(conn):
                 f"de la {s['price_from']} {s['price_unit']}",
                 desc,
                 neighborhood,
+                c_addr,
+                c_phone,
                 urgency,
                 window,
                 status,

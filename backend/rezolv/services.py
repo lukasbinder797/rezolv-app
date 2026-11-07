@@ -197,6 +197,8 @@ def register(conn, ctx, data):
     email = v.email()
     v.password()
     phone = v.phone()
+    address = v.text("address", max=200, required=False, label="Adresa")
+    neighborhood = v.text("neighborhood", max=80, required=False, label="Cartierul")
     company = cui = None
     if role == "pro":
         company = v.text("company_name", min=3, max=120, label="Denumirea firmei")
@@ -211,11 +213,17 @@ def register(conn, ctx, data):
         canon = "RO" + ver.normalize_cui(cui)
         if conn.execute("SELECT 1 FROM pro_profiles WHERE cui=?", (canon,)).fetchone():
             raise ApiError(409, "cui_taken", "Această firmă are deja un cont.", {"cui": "CUI deja înregistrat."})
+    if address and not neighborhood:
+        addr_norm = db.ro_norm(address)
+        for z in seed.SIBIU_ZONES:
+            if db.ro_norm(z) in addr_norm:
+                neighborhood = z
+                break
     uid, t = new_id("u_"), now_ts()
     conn.execute(
-        "INSERT INTO users (id,email,password_hash,role,name,phone,city,neighborhood,created_at,last_login_at) "
-        "VALUES (?,?,?,?,?,?,'Sibiu','Centru',?,?)",
-        (uid, email, hash_password(clean["password"]), role, name, phone, t, t),
+        "INSERT INTO users (id,email,password_hash,role,name,phone,city,neighborhood,address,created_at,last_login_at) "
+        "VALUES (?,?,?,?,?,?,'Sibiu',?,?,?,?)",
+        (uid, email, hash_password(clean["password"]), role, name, phone, neighborhood or "Centru", address, t, t),
     )
     if role == "pro":
         reg = ver.lookup_registry(cui)
@@ -524,19 +532,51 @@ def me(conn, user):
     return {"user": user_view(user, profile)}
 
 
+def _infer_sibiu_zone(address: str | None) -> str | None:
+    if not address:
+        return None
+    addr_norm = db.ro_norm(address)
+    for z in (*seed.SIBIU_ZONES, "Terezian", "Tilișca", "Sub Arini", "Arhitecților"):
+        zn = db.ro_norm(z)
+        if re.search(rf"(?<![a-z0-9]){re.escape(zn)}(?![a-z0-9])", addr_norm):
+            return z
+    return None
+
+
 def update_me(conn, user, data):
     v = Validator(data)
     name = v.text("name", min=2, max=80, label="Numele", required=False)
+    has_email = isinstance(data, dict) and "email" in data and data.get("email") is not None
+    email = v.email("email") if has_email else None
     phone = v.phone()
     address = v.text("address", max=200, required=False, label="Adresa")
     neighborhood = v.text("neighborhood", max=80, required=False, label="Cartierul")
     locale = v.choice("locale", ("ro", "en", "de"), required=False, label="Limba")
     v.done()
+    if email and email.lower() != (user["email"] or "").lower():
+        if conn.execute("SELECT 1 FROM users WHERE lower(email)=? AND id<>?", (email.lower(), user["id"])).fetchone():
+            raise ApiError(409, "email_taken", "Există deja un cont cu acest email.", {"email": "Email deja folosit."})
+    if address and not neighborhood:
+        neighborhood = _infer_sibiu_zone(address)
+    old_addr = user["address"] if "address" in user.keys() else None
+    old_phone = user["phone"] if "phone" in user.keys() else None
     conn.execute(
-        "UPDATE users SET name=COALESCE(?,name), phone=COALESCE(?,phone), address=COALESCE(?,address),"
-        " neighborhood=COALESCE(?,neighborhood), locale=COALESCE(?,locale) WHERE id=?",
-        (name, phone, address, neighborhood, locale, user["id"]),
+        "UPDATE users SET name=COALESCE(?,name), email=COALESCE(?,email), phone=COALESCE(?,phone), "
+        "address=COALESCE(?,address), neighborhood=COALESCE(?,neighborhood), locale=COALESCE(?,locale) WHERE id=?",
+        (name, email, phone, address, neighborhood, locale, user["id"]),
     )
+    if address and user["role"] == "client":
+        conn.execute(
+            "UPDATE bookings SET client_address=?, neighborhood=COALESCE(?,neighborhood) "
+            "WHERE client_id=? AND status IN ('pending','estimated','accepted') AND (client_address IS NULL OR client_address=?)",
+            (address, neighborhood, user["id"], old_addr),
+        )
+    if phone and user["role"] == "client":
+        conn.execute(
+            "UPDATE bookings SET client_phone=? "
+            "WHERE client_id=? AND status IN ('pending','estimated','accepted') AND (client_phone IS NULL OR client_phone=?)",
+            (phone, user["id"], old_phone),
+        )
     conn.commit()
     return me(conn, conn.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone())
 
@@ -681,6 +721,12 @@ def _estimate_view(row) -> dict:
 def create_booking(conn, ctx, user, data):
     require_role(user, "client")
     ctx.limiter.check(f"booking:{user['id']}", 15, 3600, "Ai trimis prea multe solicitări într-o oră.")
+    if isinstance(data, dict):
+        data = dict(data)
+        if not data.get("address") and data.get("client_address"):
+            data["address"] = data["client_address"]
+        if not data.get("phone") and data.get("client_phone"):
+            data["phone"] = data["client_phone"]
     v = Validator(data)
     service_id = v.text("service_id", max=40, label="Serviciul")
     desc = v.text("description", min=10, max=1500, label="Descrierea")
@@ -688,12 +734,21 @@ def create_booking(conn, ctx, user, data):
     u_keys = user.keys() if hasattr(user, "keys") else {}
     u_addr = user["address"] if "address" in u_keys else None
     u_phone = user["phone"] if "phone" in u_keys else None
-    neighborhood = v.text("neighborhood", max=60, required=False, label="Cartierul") or (user["neighborhood"] if "neighborhood" in u_keys else None) or "Hipodrom"
-    address = v.text("address", max=120, required=False, label="Adresa") or u_addr
+    explicit_neighborhood = v.text("neighborhood", max=60, required=False, label="Cartierul")
+    explicit_address = v.text("address", max=200, required=False, label="Adresa")
+    address = explicit_address or u_addr
     phone = v.phone("phone", required=False, label="Telefonul") or u_phone
     urgency = v.choice("urgency_level", ("normal", "urgent_today"), required=False, label="Urgența") or "normal"
     preferred_window = v.text("preferred_window", max=80, required=False, label="Intervalul preferat") or sched or "Mâine, 09:00–13:00"
     v.done()
+    inferred_from_explicit = _infer_sibiu_zone(explicit_address)
+    neighborhood = (
+        inferred_from_explicit
+        or explicit_neighborhood
+        or _infer_sibiu_zone(address)
+        or (user["neighborhood"] if "neighborhood" in u_keys else None)
+        or "Hipodrom"
+    )
     photos = _validate_photos(data.get("photos"))
     s = conn.execute(
         "SELECT s.*, p.verification_status, u.is_active FROM pro_services s JOIN pro_profiles p ON p.user_id=s.pro_id "
@@ -756,8 +811,8 @@ def create_booking(conn, ctx, user, data):
 
 def _booking_row(conn, bid):
     return conn.execute(
-        "SELECT b.*, c.name AS client_name, COALESCE(b.client_phone, c.phone) AS client_phone, "
-        "COALESCE(b.client_address, c.address) AS client_address, "
+        "SELECT b.*, c.name AS client_name, c.email AS client_email, COALESCE(b.client_phone, c.phone) AS resolved_client_phone, "
+        "COALESCE(b.client_address, c.address) AS resolved_client_address, "
         "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pr.phone AS pro_phone, pp.company_name AS pro_company "
         "FROM bookings b JOIN users c ON c.id=b.client_id JOIN users pr ON pr.id=b.pro_id "
         "LEFT JOIN pro_profiles pp ON pp.user_id=b.pro_id WHERE b.id=?",
@@ -772,8 +827,17 @@ def _booking_view(conn, b, viewer, detail=False):
         (b["id"],),
     ).fetchone()
     sms_list = sms.list_booking_sms(conn, b["id"])
-    neighborhood = b["neighborhood"] if "neighborhood" in b.keys() and b["neighborhood"] else "Sibiu"
-    pro_phone = b["pro_phone"] if "pro_phone" in b.keys() else None
+    b_keys = b.keys() if hasattr(b, "keys") else ()
+    neighborhood = b["neighborhood"] if "neighborhood" in b_keys and b["neighborhood"] else "Sibiu"
+    pro_phone = b["pro_phone"] if "pro_phone" in b_keys else None
+    resolved_addr = (
+        (b["resolved_client_address"] if "resolved_client_address" in b_keys else None)
+        or (b["client_address"] if "client_address" in b_keys else None)
+    )
+    resolved_phone = (
+        (b["resolved_client_phone"] if "resolved_client_phone" in b_keys else None)
+        or (b["client_phone"] if "client_phone" in b_keys else None)
+    )
     out = {
         "id": b["id"],
         "status": b["status"],
@@ -782,29 +846,30 @@ def _booking_view(conn, b, viewer, detail=False):
         "price_label": b["price_label"],
         "description": b["description"],
         "neighborhood": neighborhood,
-        "urgency_level": b["urgency_level"] if "urgency_level" in b.keys() else "normal",
-        "preferred_window": b["preferred_window"] if "preferred_window" in b.keys() else b["scheduled_for"],
+        "urgency_level": b["urgency_level"] if "urgency_level" in b_keys else "normal",
+        "preferred_window": b["preferred_window"] if "preferred_window" in b_keys else b["scheduled_for"],
         "quote_price": b["quote_price"],
-        "quote_price_max": b["quote_price_max"] if "quote_price_max" in b.keys() else None,
+        "quote_price_max": b["quote_price_max"] if "quote_price_max" in b_keys else None,
         "quote_duration": b["quote_duration"],
-        "duration_minutes": b["duration_minutes"] if "duration_minutes" in b.keys() else 60,
-        "pro_notes": b["pro_notes"] if "pro_notes" in b.keys() else None,
+        "duration_minutes": b["duration_minutes"] if "duration_minutes" in b_keys else 60,
+        "pro_notes": b["pro_notes"] if "pro_notes" in b_keys else None,
         "scheduled_for": b["scheduled_for"],
-        "scheduled_start_at": b["scheduled_start_at"] if "scheduled_start_at" in b.keys() else None,
-        "scheduled_end_at": b["scheduled_end_at"] if "scheduled_end_at" in b.keys() else None,
+        "scheduled_start_at": b["scheduled_start_at"] if "scheduled_start_at" in b_keys else None,
+        "scheduled_end_at": b["scheduled_end_at"] if "scheduled_end_at" in b_keys else None,
         "created_at": b["created_at"],
         "ago": ago(b["created_at"]),
         "time_label": b["scheduled_for"] or hhmm(b["created_at"]),
         "client": {
             "id": b["client_id"],
             "name": b["client_name"],
+            "email": b["client_email"] if "client_email" in b_keys else None,
             "neighborhood": neighborhood,
-            "address": b["client_address"] or f"{neighborhood}, Sibiu",
+            "address": resolved_addr or f"{neighborhood}, Sibiu",
         },
         "professional": {
             "id": b["pro_id"],
             "name": b["pro_name"],
-            "company_name": b["pro_company"] if "pro_company" in b.keys() else "",
+            "company_name": b["pro_company"] if "pro_company" in b_keys else "",
             "initials": initials(b["pro_name"]),
             "phone": pro_phone if (b["status"] in ("accepted", "completed") or viewer["role"] in ("pro", "admin")) else None,
         },
@@ -812,11 +877,11 @@ def _booking_view(conn, b, viewer, detail=False):
         "sms_reminders": sms_list,
         "review": dict(review) if review else None,
         "can_review": b["status"] == "completed" and review is None and viewer["id"] == b["client_id"],
-        "client_address": b["client_address"] if "client_address" in b.keys() else None,
-        "client_phone": b["client_phone"] if "client_phone" in b.keys() and (viewer["role"] != "client" or viewer["id"] == b["client_id"]) else None,
+        "client_address": resolved_addr,
+        "client_phone": resolved_phone if (viewer["role"] != "client" or viewer["id"] == b["client_id"]) else None,
     }
     if viewer["role"] != "client" and b["status"] in ("estimated", "accepted", "completed"):
-        out["client"]["phone"] = b["client_phone"]
+        out["client"]["phone"] = resolved_phone
     if detail:
         out["photos"] = [
             r["data_url"]
@@ -835,8 +900,8 @@ def _booking_view(conn, b, viewer, detail=False):
 def list_bookings(conn, user, status=None):
     col = {"client": "b.client_id", "pro": "b.pro_id"}.get(user["role"])
     sql = (
-        "SELECT b.*, c.name AS client_name, COALESCE(b.client_phone, c.phone) AS client_phone, "
-        "COALESCE(b.client_address, c.address) AS client_address, "
+        "SELECT b.*, c.name AS client_name, c.email AS client_email, COALESCE(b.client_phone, c.phone) AS resolved_client_phone, "
+        "COALESCE(b.client_address, c.address) AS resolved_client_address, "
         "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pr.phone AS pro_phone, pp.company_name AS pro_company "
         "FROM bookings b JOIN users c ON c.id=b.client_id JOIN users pr ON pr.id=b.pro_id "
         "LEFT JOIN pro_profiles pp ON pp.user_id=b.pro_id"
@@ -1276,9 +1341,9 @@ def create_manual_pro_booking(conn, user, data):
 
     conn.execute(
         "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
-        "neighborhood,urgency_level,preferred_window,status,quote_price,quote_duration,duration_minutes,"
+        "neighborhood,client_address,client_phone,urgency_level,preferred_window,status,quote_price,quote_duration,duration_minutes,"
         "pro_notes,scheduled_for,scheduled_start_at,scheduled_end_at,created_at,updated_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,'normal',?,'accepted',?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,'normal',?,'accepted',?,?,?,?,?,?,?,?,?)",
         (
             bid,
             client_id,
@@ -1289,6 +1354,8 @@ def create_manual_pro_booking(conn, user, data):
             f"{price} RON",
             notes,
             neighborhood,
+            address,
+            client_phone,
             slot_lbl,
             price,
             dur_lbl,
@@ -1461,8 +1528,9 @@ def pro_calendar(conn, user, days_count: int = 5):
     all_active = [
         _booking_view(conn, b, user, detail=True)
         for b in conn.execute(
-            "SELECT b.*, c.name AS client_name, c.phone AS client_phone, c.address AS client_address, "
-            "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pp.company_name AS pro_company "
+            "SELECT b.*, c.name AS client_name, c.email AS client_email, COALESCE(b.client_phone, c.phone) AS resolved_client_phone, "
+            "COALESCE(b.client_address, c.address) AS resolved_client_address, "
+            "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pr.phone AS pro_phone, pp.company_name AS pro_company "
             "FROM bookings b JOIN users c ON c.id=b.client_id JOIN users pr ON pr.id=b.pro_id "
             "LEFT JOIN pro_profiles pp ON pp.user_id=b.pro_id "
             "WHERE b.pro_id=? AND b.status IN ('accepted','estimated','completed') "
@@ -1536,8 +1604,9 @@ def pro_dashboard(conn, user):
     pend = [
         _booking_view(conn, b, user, detail=True)
         for b in conn.execute(
-            "SELECT b.*, c.name AS client_name, c.phone AS client_phone, c.address AS client_address, "
-            "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pp.company_name AS pro_company "
+            "SELECT b.*, c.name AS client_name, c.email AS client_email, COALESCE(b.client_phone, c.phone) AS resolved_client_phone, "
+            "COALESCE(b.client_address, c.address) AS resolved_client_address, "
+            "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pr.phone AS pro_phone, pp.company_name AS pro_company "
             "FROM bookings b JOIN users c ON c.id=b.client_id JOIN users pr ON pr.id=b.pro_id "
             "LEFT JOIN pro_profiles pp ON pp.user_id=b.pro_id "
             "WHERE b.pro_id=? AND b.status IN ('pending','estimated') ORDER BY (b.status='pending') DESC, b.created_at DESC",
@@ -1547,8 +1616,9 @@ def pro_dashboard(conn, user):
     sched = [
         _booking_view(conn, b, user, detail=True)
         for b in conn.execute(
-            "SELECT b.*, c.name AS client_name, c.phone AS client_phone, c.address AS client_address, "
-            "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pp.company_name AS pro_company "
+            "SELECT b.*, c.name AS client_name, c.email AS client_email, COALESCE(b.client_phone, c.phone) AS resolved_client_phone, "
+            "COALESCE(b.client_address, c.address) AS resolved_client_address, "
+            "c.neighborhood AS client_neighborhood, pr.name AS pro_name, pr.phone AS pro_phone, pp.company_name AS pro_company "
             "FROM bookings b JOIN users c ON c.id=b.client_id JOIN users pr ON pr.id=b.pro_id "
             "LEFT JOIN pro_profiles pp ON pp.user_id=b.pro_id "
             "WHERE b.pro_id=? AND (b.status='accepted' OR (b.status='completed' AND b.completed_at>=?)) "

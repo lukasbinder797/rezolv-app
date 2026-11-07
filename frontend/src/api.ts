@@ -114,7 +114,7 @@ export type ApiBooking = {
   scheduled_end_at?: number | null
   ago: string
   time_label: string
-  client: { id: string; name: string; neighborhood?: string; address: string | null; phone?: string | null }
+  client: { id: string; name: string; neighborhood?: string; address: string | null; phone?: string | null; email?: string | null }
   professional: { id: string; name: string; company_name?: string; initials: string; phone?: string | null }
   client_address?: string | null
   client_phone?: string | null

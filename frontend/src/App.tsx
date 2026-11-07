@@ -24,7 +24,6 @@ import {
 import { SuperAdminDashboard } from "./components/SuperAdminDashboard"
 import { FeedbackWidget } from "./components/FeedbackWidget"
 import { SvgIcon } from "./components/SvgIcon"
-import { LocationMapPicker } from "./components/LocationMapPicker"
 import {
   addBookingToNativeCalendar,
   buildGoogleCalendarUrl,
@@ -664,7 +663,29 @@ function BookingCard({
         </div>
       )}
 
-      {/* 1-Click Native Phone Calendar (.ics / Apple Calendar / Google Calendar) & GPS Map */}
+      {/* Intervention Address Summary (Text only — no map/route buttons for clients) */}
+      {(booking.client_address || booking.client?.address || booking.neighborhood) && (
+        <div
+          style={{
+            margin: "6px 0 4px",
+            fontSize: 12,
+            color: "var(--text-secondary)",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <SvgIcon name="pin" size={13} />
+          <span>
+            Adresă intervenție:{" "}
+            <strong style={{ color: "var(--text-primary)" }}>
+              {booking.client_address || booking.client?.address || `${booking.neighborhood}, Sibiu`}
+            </strong>
+          </span>
+        </div>
+      )}
+
+      {/* 1-Click Native Phone Calendar (.ics / Apple Calendar / Google Calendar) */}
       {booking.status !== "cancelled" && booking.status !== "refused" && (
         <div
           style={{
@@ -719,31 +740,6 @@ function BookingCard({
             <SvgIcon name="calendar" size={13} />
             <span>Google Cal</span>
           </a>
-
-          <a
-            href={`https://maps.apple.com/?q=${encodeURIComponent(
-              booking.client?.address || `${booking.neighborhood || "Hipodrom"}, Sibiu`,
-            )}`}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              height: 36,
-              padding: "0 10px",
-              borderRadius: "var(--radius-xs)",
-              background: "var(--surface-raised)",
-              color: "var(--navy)",
-              border: "1px solid var(--border-strong)",
-              fontSize: 11,
-              fontWeight: 600,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-            }}
-          >
-            <SvgIcon name="pin" size={13} />
-            <span>Hartă GPS</span>
-          </a>
         </div>
       )}
 
@@ -766,7 +762,6 @@ function ClientHome({
   onOpenBookings,
   onAcceptEstimate,
   onDeclineEstimate,
-  onUserUpdated,
 }: {
   user: ApiUser
   bookings: ApiBooking[]
@@ -776,12 +771,8 @@ function ClientHome({
   onOpenBookings: () => void
   onAcceptEstimate: (booking: ApiBooking) => void
   onDeclineEstimate: (booking: ApiBooking) => void
-  onUserUpdated: (user: ApiUser) => void
 }) {
   const [query, setQuery] = useState("")
-  const [showHomeMap, setShowHomeMap] = useState(false)
-  const [liveAddress, setLiveAddress] = useState(user.address || "")
-  const [liveNeighborhood, setLiveNeighborhood] = useState(user.neighborhood || "Hipodrom")
   const filtered = categories.filter(([name]) =>
     name.toLowerCase().includes(query.toLowerCase()),
   )
@@ -819,7 +810,7 @@ function ClientHome({
             />
           </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
@@ -832,13 +823,13 @@ function ClientHome({
               </span>
               <button
                 type="button"
-                onClick={() => setShowHomeMap((v) => !v)}
+                onClick={onProfile}
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
                   padding: "2px 8px",
-                  background: showHomeMap ? "var(--navy)" : "var(--surface-raised)",
-                  color: showHomeMap ? "var(--white)" : "var(--navy)",
+                  background: "var(--surface-raised)",
+                  color: "var(--navy)",
                   border: "1px solid var(--border-strong)",
                   borderRadius: 6,
                   fontWeight: 600,
@@ -848,14 +839,14 @@ function ClientHome({
                 }}
               >
                 <SvgIcon name="pin" size={12} />
-                <span>{liveNeighborhood} · Hartă GPS</span>
+                <span>{user.neighborhood || "Sibiu"} · Setări adresă</span>
               </button>
             </div>
             <div className="screen-title" style={{ margin: "2px 0 0", fontSize: 18, lineHeight: "24px" }}>
               Servicii și intervenții locale
             </div>
             <small style={{ color: "var(--text-secondary)", fontSize: 12 }}>
-              {liveAddress ? `Locație GPS: ${liveAddress}` : `Cont client · ${user.name}`}
+              {user.address ? `Adresă reședință: ${user.address}` : `Cont client · ${user.name}`}
             </small>
           </div>
         </div>
@@ -867,34 +858,6 @@ function ClientHome({
           {user.initials || "LB"}
         </Pressable>
       </header>
-
-      {showHomeMap && (
-        <div style={{ marginBottom: 14 }}>
-          <LocationMapPicker
-            neighborhood={liveNeighborhood}
-            address={liveAddress}
-            onSelectLocation={async (loc) => {
-              setLiveNeighborhood(loc.neighborhood)
-              setLiveAddress(loc.address)
-              try {
-                const res = await api.updateMe({
-                  name: user.name,
-                  phone: user.phone || "+40 721 555 010",
-                  city: "Sibiu",
-                  address: loc.address,
-                })
-                onUserUpdated({
-                  ...res.user,
-                  neighborhood: loc.neighborhood,
-                  address: loc.address,
-                })
-              } catch {
-                // ignore offline update error
-              }
-            }}
-          />
-        </div>
-      )}
 
       <div className="search-shell">
         <Icon file="91214.svg" />
@@ -1009,15 +972,6 @@ function Discovery({
     proId?: string
   } | null>(null)
 
-  const quickExamples = [
-    "S-a ars siguranța la tablou și nu am curent la prize",
-    "Centrala termică afișează eroare F28 și caloriferele sunt reci",
-    "Am făcut pană la roată în Sibiu, cauciuc tăiat",
-    "S-a blocat yala la ușa de intrare și nu pot intra",
-    "Mașina de spălat rufe nu mai evacuează apa",
-    "Zugrăvit două camere cu lavabilă și reparații glet",
-  ]
-
   const addPhotos = (files: FileList | null) => {
     if (!files) return
     Array.from(files)
@@ -1093,35 +1047,6 @@ function Discovery({
             onChange={setProblem}
             placeholder="Ex: Nu merge centrala termică, s-a ars siguranța, am făcut pană la roată, s-a blocat ușa..."
           />
-          <div style={{ marginBottom: 10 }}>
-            <small style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-              Sau testează rapid un scenariu:
-            </small>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {quickExamples.map((ex) => (
-                <button
-                  key={ex}
-                  type="button"
-                  onClick={() => {
-                    setProblem(ex)
-                    runTriage(ex)
-                  }}
-                  style={{
-                    fontSize: 11,
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid var(--border-strong)",
-                    background: problem === ex ? "var(--soft-blue)" : "var(--surface-subtle)",
-                    color: problem === ex ? "var(--navy)" : "var(--text-secondary)",
-                    fontWeight: 500,
-                    textAlign: "left",
-                  }}
-                >
-                  {ex.length > 42 ? ex.slice(0, 40) + "…" : ex}
-                </button>
-              ))}
-            </div>
-          </div>
           {photos.length > 0 && (
             <div className="photo-previews">
               {photos.map((photo, index) => (
@@ -1367,6 +1292,173 @@ function BookingsList({
   )
 }
 
+const onboardedClientIds = new Set<string>()
+
+const ALL_SIBIU_ZONES = [
+  "Hipodrom",
+  "Șelimbăr",
+  "Turnișor",
+  "Ștrand",
+  "Vasile Aaron",
+  "Centru Istoric",
+  "Gușterița",
+  "Terezian",
+  "Valea Aurie",
+  "Sub Arini",
+  "Lazaret",
+  "Broscărie",
+  "Calea Dumbrăvii",
+  "Tilișca",
+]
+
+function normRoText(val?: string | null): string {
+  return (val ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
+function inferSibiuZone(address?: string | null, fallback?: string | null): string {
+  const normAddr = normRoText(address)
+  if (normAddr) {
+    for (const z of ALL_SIBIU_ZONES) {
+      const zn = normRoText(z).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      if (new RegExp(`(?<![a-z0-9])${zn}(?![a-z0-9])`).test(normAddr)) return z
+    }
+  }
+  return fallback || "Hipodrom"
+}
+
+function formatSibiuRouteQuery(rawAddr?: string | null, neighborhood?: string | null): string {
+  const base = (rawAddr || "").trim() || `${neighborhood || "Hipodrom"}, Sibiu`
+  return normRoText(base).includes("sibiu") ? base : `${base}, Sibiu, România`
+}
+
+function hasCompletedClientOnboarding(user: ApiUser): boolean {
+  const missingData = !user.address?.trim() || !user.phone?.trim() || !user.email?.trim()
+  if (missingData) return false
+  if (onboardedClientIds.has(user.id)) return true
+  try {
+    if (localStorage.getItem(`rezolv_client_onboarded_v2_${user.id}`)) {
+      onboardedClientIds.add(user.id)
+      return true
+    }
+    return false
+  } catch {
+    return onboardedClientIds.has(user.id)
+  }
+}
+
+function ClientOnboardingModal({
+  user,
+  onSaved,
+}: {
+  user: ApiUser
+  onSaved: (user: ApiUser) => void
+}) {
+  const [address, setAddress] = useState(user.address ?? "")
+  const [phone, setPhone] = useState(user.phone ?? "")
+  const [email, setEmail] = useState(user.email ?? "")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const [fields, setFields] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    setAddress(user.address ?? "")
+    setPhone(user.phone ?? "")
+    setEmail(user.email ?? "")
+  }, [user.id, user.address, user.phone, user.email])
+
+  const valid =
+    address.trim().length >= 5 &&
+    phone.trim().length >= 8 &&
+    email.trim().includes("@")
+
+  const save = async () => {
+    if (!valid || busy) return
+    setBusy(true)
+    setError("")
+    setFields({})
+    try {
+      const res = await api.updateMe({
+        name: user.name,
+        address: address.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+      })
+      onboardedClientIds.add(res.user.id)
+      try {
+        localStorage.setItem(`rezolv_client_onboarded_v2_${res.user.id}`, "1")
+      } catch {
+        // ignore storage restrictions; onboardedClientIds tracks session completion
+      }
+      onSaved(res.user)
+    } catch (e) {
+      if (e instanceof ApiFailure) {
+        setError(e.message)
+        setFields(e.fields)
+      } else {
+        setError("Nu am putut salva datele. Încearcă din nou.")
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Configurare date client">
+      <div className="modal quote-modal">
+        <div className="modal-handle" />
+        <div className="modal-title">Bun venit! Configurează datele tale</div>
+        <p>
+          Completează sau confirmă adresa de reședință, numărul de telefon și emailul.
+          Aceste date se vor pre-completa automat la fiecare rezervare (ca meșterii să știe unde să ajungă)
+          și pot fi modificate oricând din <strong>Profilul meu (Setări)</strong>.
+        </p>
+
+        <div className="label">Adresa de reședință (Sibiu)</div>
+        <div className="input-shell">
+          <Field
+            value={address}
+            onChange={setAddress}
+            placeholder="Ex: Str. Nicolae Iorga nr. 42, Bl. 12, Ap. 8, Hipodrom, Sibiu"
+          />
+        </div>
+        {fields.address && <div className="field-error">{fields.address}</div>}
+
+        <div className="label">Număr de telefon</div>
+        <div className="input-shell">
+          <Field
+            value={phone}
+            onChange={setPhone}
+            placeholder="Ex: +40 721 555 010"
+          />
+        </div>
+        {fields.phone && <div className="field-error">{fields.phone}</div>}
+
+        <div className="label">Adresă de email</div>
+        <div className="input-shell">
+          <Field
+            value={email}
+            onChange={setEmail}
+            placeholder="exemplu@email.ro"
+          />
+        </div>
+        {fields.email && <div className="field-error">{fields.email}</div>}
+
+        {error && <div className="form-error">{error}</div>}
+        <Pressable
+          className="primary-button"
+          disabled={!valid || busy}
+          onClick={save}
+        >
+          {busy ? "Se salvează..." : "Salvează și continuă în aplicație"}
+        </Pressable>
+      </div>
+    </div>
+  )
+}
+
 function ProfileEditModal({
   user,
   onClose,
@@ -1377,6 +1469,7 @@ function ProfileEditModal({
   onSaved: (user: ApiUser) => void
 }) {
   const [name, setName] = useState(user.name)
+  const [email, setEmail] = useState(user.email ?? "")
   const [phone, setPhone] = useState(user.phone ?? "")
   const [address, setAddress] = useState(user.address ?? "")
   const [busy, setBusy] = useState(false)
@@ -1386,8 +1479,14 @@ function ProfileEditModal({
   const save = async () => {
     setBusy(true)
     setError("")
+    setFields({})
     try {
-      const res = await api.updateMe({ name, phone: phone || undefined, address: address || undefined })
+      const res = await api.updateMe({
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        address: address.trim() || undefined,
+      })
       onSaved(res.user)
       onClose()
     } catch (e) {
@@ -1412,14 +1511,15 @@ function ProfileEditModal({
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal quote-modal">
         <div className="modal-handle" />
-        <div className="modal-title">Date personale</div>
-        <p>Aceste date îi ajută pe meșteri să ajungă la tine.</p>
+        <div className="modal-title">Date personale și adresă de reședință</div>
+        <p>Aceste date sunt pre-completate automat la programări și îi ajută pe meșteri să ajungă la tine.</p>
         {row("Nume complet", "name", name, setName, "Prenume și nume")}
-        {row("Telefon", "phone", phone, setPhone, "+40 7xx xxx xxx")}
-        {row("Adresă", "address", address, setAddress, "Strada, număr, oraș")}
+        {row("Adresa de reședință", "address", address, setAddress, "Strada, număr, bloc, ap., cartier, Sibiu")}
+        {row("Număr de telefon", "phone", phone, setPhone, "+40 7xx xxx xxx")}
+        {row("Adresă de email", "email", email, setEmail, "exemplu@email.ro")}
         {error && <div className="form-error">{error}</div>}
         <Pressable className="primary-button" disabled={busy} onClick={save}>
-          {busy ? "Se salvează..." : "Salvează"}
+          {busy ? "Se salvează..." : "Salvează modificările"}
         </Pressable>
         <Pressable className="modal-later" onClick={onClose}>
           Anulează
@@ -1442,11 +1542,45 @@ function ClientProfile({
 }) {
   const [editing, setEditing] = useState(false)
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null)
+  const [address, setAddress] = useState(user.address ?? "")
+  const [phone, setPhone] = useState(user.phone ?? "")
+  const [email, setEmail] = useState(user.email ?? "")
+  const [savingInline, setSavingInline] = useState(false)
+  const [inlineMsg, setInlineMsg] = useState("")
+  const [inlineErr, setInlineErr] = useState("")
+
+  useEffect(() => {
+    setAddress(user.address ?? "")
+    setPhone(user.phone ?? "")
+    setEmail(user.email ?? "")
+  }, [user.address, user.phone, user.email])
+
+  const saveQuickSettings = async () => {
+    if (savingInline) return
+    setSavingInline(true)
+    setInlineMsg("")
+    setInlineErr("")
+    try {
+      const res = await api.updateMe({
+        name: user.name,
+        address: address.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+      })
+      onUserUpdated(res.user)
+      setInlineMsg("Adresa de reședință, telefonul și emailul au fost actualizate.")
+    } catch (e) {
+      setInlineErr(e instanceof ApiFailure ? e.message : "Nu am putut salva modificările.")
+    } finally {
+      setSavingInline(false)
+    }
+  }
+
   return (
     <div className="screen-content simple-screen">
       <div className="simple-header">
         <span>Profilul meu</span>
-        <small>Preferințe și cont</small>
+        <small>Setări cont, adresă de reședință și date de contact</small>
       </div>
       <div className="profile-card">
         <div className="avatar large">
@@ -1454,8 +1588,79 @@ function ClientProfile({
         </div>
         <strong>{user.name}</strong>
         <small>{user.email}</small>
+        {user.phone && <small>{user.phone}</small>}
         {user.address && <small>{user.address}</small>}
       </div>
+
+      {/* Quick Inline Settings Card for Residential Address, Phone & Email */}
+      <div
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md)",
+          padding: 16,
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div>
+          <strong style={{ display: "block", fontSize: 14, color: "var(--text-primary)" }}>
+            Setări rapide: Adresă de reședință, Telefon & Email
+          </strong>
+          <small style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+            Folosite automat la fiecare comandă ca meșterii să știe exact unde să vină.
+          </small>
+        </div>
+
+        <div>
+          <div className="label" style={{ marginTop: 2 }}>Adresa de reședință</div>
+          <div className="input-shell">
+            <Field
+              value={address}
+              onChange={setAddress}
+              placeholder="Strada, număr, bloc, ap., cartier, Sibiu"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="label" style={{ marginTop: 2 }}>Număr de telefon</div>
+          <div className="input-shell">
+            <Field
+              value={phone}
+              onChange={setPhone}
+              placeholder="+40 7xx xxx xxx"
+            />
+          </div>
+        </div>
+
+        <div>
+          <div className="label" style={{ marginTop: 2 }}>Adresă de email</div>
+          <div className="input-shell">
+            <Field
+              value={email}
+              onChange={setEmail}
+              placeholder="exemplu@email.ro"
+            />
+          </div>
+        </div>
+
+        {inlineErr && <div className="form-error">{inlineErr}</div>}
+        {inlineMsg && (
+          <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 600 }}>
+            ✓ {inlineMsg}
+          </div>
+        )}
+
+        <Pressable
+          className="primary-button compact"
+          disabled={savingInline}
+          onClick={saveQuickSettings}
+        >
+          {savingInline ? "Se salvează..." : "Salvează datele de contact și adresa"}
+        </Pressable>
+      </div>
+
       {["Date personale", "Adrese salvate", "Ajutor și suport"].map((item) => (
         <Pressable
           className="settings-row"
@@ -1528,17 +1733,23 @@ function ServiceBookingFlow({
     null,
   )
   const [problem, setProblem] = useState(initialProblem)
-  const [neighborhood, setNeighborhood] = useState(user?.neighborhood || "Hipodrom")
   const [clientAddress, setClientAddress] = useState(user?.address || "")
   const [clientPhone, setClientPhone] = useState(user?.phone || "")
+  const [useCustomAddress, setUseCustomAddress] = useState(!user?.address)
   const [preferredWindow, setPreferredWindow] = useState("Mâine, 09:00–12:00")
   const [photos, setPhotos] = useState<string[]>(initialPhotos)
   const [pros, setPros] = useState<ApiPro[] | null>(null)
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const offeredServices = selectedProfessional?.services ?? []
-  const sibiuZones = ["Hipodrom", "Șelimbăr", "Turnișor", "Ștrand", "Vasile Aaron", "Centru Istoric"]
   const windows = ["Urgent Azi", "Mâine, 09:00–12:00", "Mâine, 13:00–17:00"]
+
+  useEffect(() => {
+    if (!useCustomAddress) {
+      setClientAddress(user?.address || "")
+      setClientPhone(user?.phone || "")
+    }
+  }, [user?.address, user?.phone, useCustomAddress])
 
   useEffect(() => {
     let alive = true
@@ -1598,6 +1809,14 @@ function ServiceBookingFlow({
       })
   }
 
+  const effectiveAddress = useCustomAddress
+    ? clientAddress.trim()
+    : (user?.address || clientAddress).trim()
+  const effectivePhone = useCustomAddress
+    ? clientPhone.trim()
+    : (user?.phone || clientPhone).trim()
+  const neighborhood = inferSibiuZone(effectiveAddress, user?.neighborhood || "Hipodrom")
+
   const submitBooking = async () => {
     if (!selectedService || submitting) return
     setSubmitting(true)
@@ -1607,10 +1826,10 @@ function ServiceBookingFlow({
         service_id: selectedService.id,
         description: problem.trim(),
         neighborhood,
-        address: clientAddress.trim() || undefined,
-        client_address: clientAddress.trim() || undefined,
-        phone: clientPhone.trim() || undefined,
-        client_phone: clientPhone.trim() || undefined,
+        address: effectiveAddress || undefined,
+        client_address: effectiveAddress || undefined,
+        phone: effectivePhone || undefined,
+        client_phone: effectivePhone || undefined,
         urgency_level: preferredWindow === "Urgent Azi" ? "urgent_today" : "normal",
         preferred_window: preferredWindow,
         scheduled_for: preferredWindow,
@@ -1865,43 +2084,114 @@ function ServiceBookingFlow({
                 <span>{selectedService.price}</span>
               </div>
             </div>
-            <LocationMapPicker
-              neighborhood={neighborhood}
-              address={clientAddress}
-              compact
-              onSelectLocation={(loc) => {
-                setNeighborhood(loc.neighborhood)
-                setClientAddress(loc.address)
+
+            {/* Pre-filled residential address & phone from client account + optional custom address button */}
+            <div
+              style={{
+                background: "var(--surface-subtle)",
+                border: "1px solid var(--border-strong)",
+                borderRadius: "var(--radius-sm)",
+                padding: 12,
+                display: "grid",
+                gap: 6,
+                marginBottom: 8,
               }}
-            />
-            <div className="booking-field-label">Cartierul din Sibiu (selectat automat din hartă)</div>
-            <div className="chip-row">
-              {sibiuZones.map((z) => (
-                <Pressable
-                  key={z}
-                  className={`quick-chip ${neighborhood === z ? "active" : ""}`}
-                  onClick={() => setNeighborhood(z)}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <strong style={{ fontSize: 12, color: "var(--navy)" }}>
+                  Adresă și contact (preluate automat din cont)
+                </strong>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "var(--font-mono)",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: "var(--soft-blue)",
+                    color: "var(--navy)",
+                    fontWeight: 600,
+                  }}
                 >
-                  {z}
-                </Pressable>
-              ))}
+                  {useCustomAddress ? "Adresă diferită" : "Pre-completat"}
+                </span>
+              </div>
+              {!useCustomAddress ? (
+                <>
+                  <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>
+                    {effectiveAddress || `${neighborhood}, Sibiu`}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                    Telefon: <strong>{effectivePhone || "Nespecificat"}</strong>
+                    {user?.email ? ` · ${user.email}` : ""}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientAddress("")
+                      setUseCustomAddress(true)
+                    }}
+                    style={{
+                      marginTop: 4,
+                      padding: "6px 10px",
+                      borderRadius: "var(--radius-xs)",
+                      border: "1px solid var(--border-strong)",
+                      background: "var(--surface)",
+                      color: "var(--navy)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Folosește altă adresă pentru această intervenție
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="booking-field-label" style={{ marginTop: 2 }}>
+                    Adresa intervenției (stradă, număr, bloc, ap., cartier, Sibiu)
+                  </div>
+                  <Field
+                    value={clientAddress}
+                    onChange={setClientAddress}
+                    placeholder="Ex: Str. Mihai Viteazu nr. 14, Bl. P2, Ap. 9, Șelimbăr, Sibiu"
+                  />
+                  <div className="booking-field-label" style={{ marginTop: 6 }}>
+                    Telefon de contact pentru intervenție
+                  </div>
+                  <Field
+                    value={clientPhone}
+                    onChange={setClientPhone}
+                    placeholder="Ex: +40 740 123 456"
+                  />
+                  {user?.address && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClientAddress(user.address || "")
+                        setClientPhone(user.phone || "")
+                        setUseCustomAddress(false)
+                      }}
+                      style={{
+                        marginTop: 4,
+                        padding: "6px 10px",
+                        borderRadius: "var(--radius-xs)",
+                        border: "1px solid var(--border-strong)",
+                        background: "var(--surface)",
+                        color: "var(--text-secondary)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Revenire la adresa de reședință din cont ({user.address})
+                    </button>
+                  )}
+                </>
+              )}
             </div>
-            <div className="booking-field-label" style={{ marginTop: 8 }}>
-              Adresa exactă în Sibiu (completată automat prin GPS / Hartă)
-            </div>
-            <Field
-              value={clientAddress}
-              onChange={setClientAddress}
-              placeholder="Apasă „Localizează-mă pe hartă” mai sus sau atinge harta..."
-            />
-            <div className="booking-field-label" style={{ marginTop: 8 }}>
-              Telefon mobil (pentru remindere SMS și sosirea meșterului)
-            </div>
-            <Field
-              value={clientPhone}
-              onChange={setClientPhone}
-              placeholder="Ex: +40 740 123 456"
-            />
+
             <div className="booking-field-label" style={{ marginTop: 8 }}>
               Când preferi intervenția?
             </div>
@@ -1964,7 +2254,7 @@ function ServiceBookingFlow({
             )}
             <Pressable
               className="primary-button booking-primary"
-              disabled={problem.trim().length < 10}
+              disabled={problem.trim().length < 10 || effectiveAddress.length < 4}
               onClick={() => setStep("review")}
             >
               Verifică solicitarea
@@ -1993,12 +2283,12 @@ function ServiceBookingFlow({
               </div>
               <div className="review-line">
                 <span>Adresă intervenție</span>
-                <strong>{clientAddress.trim() ? `${clientAddress.trim()} (${neighborhood})` : `Cartier ${neighborhood}, Sibiu`}</strong>
+                <strong>{effectiveAddress ? `${effectiveAddress}` : `Cartier ${neighborhood}, Sibiu`}</strong>
               </div>
-              {clientPhone.trim() && (
+              {effectivePhone && (
                 <div className="review-line">
                   <span>Telefon contact</span>
-                  <strong>{clientPhone.trim()}</strong>
+                  <strong>{effectivePhone}</strong>
                 </div>
               )}
               <div className="review-problem">
@@ -2038,8 +2328,7 @@ function ServiceBookingFlow({
             <strong>Solicitarea a fost trimisă</strong>
             <p>
               {selectedProfessional.name} a primit detaliile pentru „
-              {selectedService.name}” și te va contacta după ce verifică
-              solicitarea.
+              {selectedService.name}” și adresa intervenției ({effectiveAddress || `${neighborhood}, Sibiu`}).
             </p>
             <div className="success-status">
               <span>Status</span>
@@ -2057,16 +2346,20 @@ function ServiceBookingFlow({
                     price_label: selectedService.price,
                     description: problem,
                     neighborhood,
+                    quote_price: null,
+                    quote_duration: null,
                     scheduled_for: preferredWindow,
                     time_label: preferredWindow,
                     ago: "acum",
+                    review: null,
                     can_review: false,
                     client: {
                       id: user?.id || "u_client",
                       name: user?.name || "Client Sibiu",
                       neighborhood,
-                      address: clientAddress || `${neighborhood}, Sibiu`,
-                      phone: clientPhone,
+                      address: effectiveAddress || `${neighborhood}, Sibiu`,
+                      phone: effectivePhone,
+                      email: user?.email,
                     },
                     professional: {
                       id: selectedProfessional.id,
@@ -2176,6 +2469,14 @@ function ClientApp({
   const [loaded, setLoaded] = useState(false)
   const [review, setReview] = useState<ApiBooking | null>(null)
   const [dialog, setDialog] = useState<DialogState | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(
+    () => !hasCompletedClientOnboarding(user),
+  )
+
+  useEffect(() => {
+    setShowOnboarding(!hasCompletedClientOnboarding(user))
+  }, [user.id, user.address, user.phone, user.email])
+
   const [bookingCategory, setBookingCategory] = useState<{
     name: string
     price: string
@@ -2273,7 +2574,6 @@ function ClientApp({
           onOpenBookings={() => setTab("bookings")}
           onAcceptEstimate={acceptEstimate}
           onDeclineEstimate={declineEstimate}
-          onUserUpdated={onUserUpdated}
         />
       )}
       {tab === "search" && (
@@ -2310,6 +2610,15 @@ function ClientApp({
           ["bookings", "Programări", navIcons.bookings],
         ]}
       />
+      {showOnboarding && (
+        <ClientOnboardingModal
+          user={user}
+          onSaved={(updatedUser) => {
+            onUserUpdated(updatedUser)
+            setShowOnboarding(false)
+          }}
+        />
+      )}
       {review && (
         <ReviewModal
           booking={review}
@@ -2497,7 +2806,7 @@ function QuoteModal({
         <div className="modal-handle" />
         <div className="modal-title">Trimite deviz și interval</div>
         <p>
-          Trimite estimarea către <strong>{booking.client.name}</strong> ({booking.neighborhood ?? "Sibiu"}).
+          Trimite estimarea către <strong>{booking.client.name}</strong> ({booking.client_address || booking.client.address || booking.neighborhood || "Sibiu"}).
           La confirmarea clientului, intervalul se blochează automat în agendă.
         </p>
 
@@ -2694,58 +3003,109 @@ function ProDashboard({
         {data && pending.length === 0 && (
           <div className="list-note">Nu există cereri noi în așteptare.</div>
         )}
-        {pending.map((b, i) => (
-          <div className={`request-card ${i === 0 ? "featured" : ""}`} key={b.id}>
-            <div className="request-state">
-              <span className={b.status === "estimated" ? "muted-badge" : ""}>
-                {b.status === "estimated"
-                  ? "Deviz trimis · așteaptă confirmarea"
-                  : b.urgency_level === "urgent_today"
-                    ? "Urgență azi · " + (b.neighborhood ?? "Sibiu")
-                    : "Cerere nouă · " + (b.neighborhood ?? "Sibiu")}
-              </span>
-              <b>{b.ago}</b>
-            </div>
-            <strong>{b.service_name}</strong>
-            <small>
-              Client: {b.client.name} · {b.client.address ?? b.neighborhood ?? "Sibiu"}
-              {b.preferred_window ? ` · Interval dorit: ${b.preferred_window}` : ""}
-            </small>
-            <div className="client-note">
-              <b>Notă client:</b> „{b.description}”
-            </div>
-            {b.status === "estimated" && (
-              <div className="sms-pill-row">
-                <span className="sms-pill sent">
-                  Deviz propus: {b.quote_price} RON ({b.quote_duration}) · {b.scheduled_for}
+        {pending.map((b, i) => {
+          const destAddr = b.client_address || b.client.address || `${b.neighborhood || "Hipodrom"}, Sibiu`
+          const routeQuery = formatSibiuRouteQuery(destAddr, b.neighborhood)
+          return (
+            <div className={`request-card ${i === 0 ? "featured" : ""}`} key={b.id}>
+              <div className="request-state">
+                <span className={b.status === "estimated" ? "muted-badge" : ""}>
+                  {b.status === "estimated"
+                    ? "Deviz trimis · așteaptă confirmarea"
+                    : b.urgency_level === "urgent_today"
+                      ? "Urgență azi · " + (b.neighborhood ?? "Sibiu")
+                      : "Cerere nouă · " + (b.neighborhood ?? "Sibiu")}
                 </span>
+                <b>{b.ago}</b>
               </div>
-            )}
-            {b.photos && b.photos.length > 0 && (
-              <div className="review-photos">
-                {b.photos.map((p, k) => (
-                  <img alt={`Fotografie client ${k + 1}`} key={k} src={p} />
-                ))}
+              <strong>{b.service_name}</strong>
+              <small>
+                Client: {b.client.name} · <strong>{destAddr}</strong>
+                {b.preferred_window ? ` · Interval dorit: ${b.preferred_window}` : ""}
+              </small>
+              <div className="client-note">
+                <b>Notă client:</b> „{b.description}”
               </div>
-            )}
-            <div className="request-actions" style={{ marginTop: 14 }}>
-              <Pressable
-                className="primary-button field-btn-giant"
-                onClick={() => onQuote(b)}
-              >
-                {b.status === "estimated"
-                  ? "Modifică devizul"
-                  : "Trimite deviz (2 pași)"}
-              </Pressable>
-              <Pressable
-                className="field-btn-secondary"
-                onClick={() => onRefuse(b)}
-              >
-                Refuză
-              </Pressable>
+              {/* Route calculation via Waze & Google Maps exclusively for Tradespeople */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                <a
+                  href={`https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    height: 32,
+                    padding: "0 10px",
+                    borderRadius: "var(--radius-xs)",
+                    background: "var(--surface-raised)",
+                    color: "var(--navy)",
+                    border: "1px solid var(--border-strong)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <SvgIcon name="pin" size={12} />
+                  <span>Rută Waze</span>
+                </a>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    height: 32,
+                    padding: "0 10px",
+                    borderRadius: "var(--radius-xs)",
+                    background: "var(--surface-raised)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-strong)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <SvgIcon name="pin" size={12} />
+                  <span>Rută Maps</span>
+                </a>
+              </div>
+              {b.status === "estimated" && (
+                <div className="sms-pill-row" style={{ marginTop: 8 }}>
+                  <span className="sms-pill sent">
+                    Deviz propus: {b.quote_price} RON ({b.quote_duration}) · {b.scheduled_for}
+                  </span>
+                </div>
+              )}
+              {b.photos && b.photos.length > 0 && (
+                <div className="review-photos">
+                  {b.photos.map((p, k) => (
+                    <img alt={`Fotografie client ${k + 1}`} key={k} src={p} />
+                  ))}
+                </div>
+              )}
+              <div className="request-actions" style={{ marginTop: 14 }}>
+                <Pressable
+                  className="primary-button field-btn-giant"
+                  onClick={() => onQuote(b)}
+                >
+                  {b.status === "estimated"
+                    ? "Modifică devizul"
+                    : "Trimite deviz (2 pași)"}
+                </Pressable>
+                <Pressable
+                  className="field-btn-secondary"
+                  onClick={() => onRefuse(b)}
+                >
+                  Refuză
+                </Pressable>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </section>
       <div style={{ display: "grid", gap: 18 }}>
         {data?.calendar && (
@@ -2767,6 +3127,9 @@ function ProDashboard({
           )}
           {(data?.schedule ?? []).map((b) => {
             const done = b.status === "completed"
+            const destAddr = b.client_address || b.client.address || `${b.neighborhood || "Hipodrom"}, Sibiu`
+            const routeQuery = formatSibiuRouteQuery(destAddr, b.neighborhood)
+            const clientPhone = b.client_phone || b.client.phone
             return (
               <div className={`schedule-card ${done ? "green-line" : "blue-line"}`} key={b.id}>
                 <b>
@@ -2778,8 +3141,7 @@ function ProDashboard({
                     {b.service_name} ({b.quote_price} RON)
                   </strong>
                   <small>
-                    {b.client.name} · {b.neighborhood ?? "Sibiu"}
-                    {b.client.address ? ` (${b.client.address})` : ""}
+                    {b.client.name} · {destAddr}
                   </small>
                   {done ? (
                     <span>
@@ -2788,24 +3150,36 @@ function ProDashboard({
                   ) : (
                     <>
                       <span className="schedule-actions">
-                        <Pressable
-                          onClick={() => {
-                            if (b.client.phone)
-                              window.location.href = `tel:${b.client.phone.replace(/\s+/g, "")}`
-                          }}
-                        >
-                          Apel client
-                        </Pressable>
+                        {clientPhone && (
+                          <Pressable
+                            onClick={() => {
+                              window.location.href = `tel:${clientPhone.replace(/\s+/g, "")}`
+                            }}
+                          >
+                            Apel client
+                          </Pressable>
+                        )}
                         <Pressable
                           onClick={() =>
                             window.open(
-                              `https://www.waze.com/ul?q=${encodeURIComponent(b.client.address ?? "Sibiu")}`,
+                              `https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`,
                               "_blank",
                               "noopener,noreferrer",
                             )
                           }
                         >
-                          Navigație Waze
+                          Rută Waze
+                        </Pressable>
+                        <Pressable
+                          onClick={() =>
+                            window.open(
+                              `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`,
+                              "_blank",
+                              "noopener,noreferrer",
+                            )
+                          }
+                        >
+                          Rută Maps
                         </Pressable>
                         <Pressable
                           onClick={() => addBookingToNativeCalendar(b, "pro")}

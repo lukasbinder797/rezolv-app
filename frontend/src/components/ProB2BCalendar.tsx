@@ -6,7 +6,6 @@ import {
   type ApiQuickSlot,
 } from "../api"
 import { SvgIcon } from "./SvgIcon"
-import { LocationMapPicker } from "./LocationMapPicker"
 import {
   addBookingToNativeCalendar,
   syncAllBookingsToNativeCalendar,
@@ -288,18 +287,9 @@ export function ProB2BCalendar({
 
             <div>
               <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>
-                4. Cartier și adresă în Sibiu (GPS sau Hartă)
+                4. Adresa intervenției în Sibiu
               </small>
-              <LocationMapPicker
-                neighborhood={manualNeighborhood}
-                address={manualAddress}
-                compact
-                onSelectLocation={(loc) => {
-                  setManualNeighborhood(loc.neighborhood)
-                  setManualAddress(loc.address)
-                }}
-              />
-              <div className="chip-row" style={{ marginTop: 8 }}>
+              <div className="chip-row" style={{ marginBottom: 8 }}>
                 {sibiuZones.map((z) => (
                   <div
                     key={z}
@@ -312,10 +302,10 @@ export function ProB2BCalendar({
                   </div>
                 ))}
               </div>
-              <div className="input-shell" style={{ marginTop: 8 }}>
+              <div className="input-shell">
                 <input
                   className="field"
-                  placeholder={`Adresă completată automat din hartă (ex: Str. Rahovei nr. 14, ${manualNeighborhood})`}
+                  placeholder={`Ex: Str. Rahovei nr. 14, bl. 2, ap. 8, ${manualNeighborhood}, Sibiu`}
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
                 />
@@ -505,7 +495,10 @@ export function ProB2BCalendar({
                 </small>
 
                 {/* Quick Field Navigation & Direct Client Call */}
-                {!isDone && (
+                {!isDone && (() => {
+                  const rawAddr = (bk.client_address || bk.client.address || bk.neighborhood || "Sibiu").trim()
+                  const routeDest = /sibiu/i.test(rawAddr) ? `${rawAddr}, România` : `${rawAddr}, Sibiu, România`
+                  return (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                     {(bk.client_phone || bk.client.phone) && (
                       <a
@@ -518,24 +511,24 @@ export function ProB2BCalendar({
                       </a>
                     )}
                     <a
-                      href={`https://waze.com/ul?q=${encodeURIComponent((bk.client_address || bk.client.address || bk.neighborhood || "Sibiu") + ", Sibiu, Romania")}`}
+                      href={`https://waze.com/ul?q=${encodeURIComponent(routeDest)}&navigate=yes`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="chip-button"
                       style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
                     >
                       <SvgIcon name="navigation" size={12} />
-                      <span>Waze</span>
+                      <span>Rută Waze</span>
                     </a>
                     <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((bk.client_address || bk.client.address || bk.neighborhood || "Sibiu") + ", Sibiu, Romania")}`}
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeDest)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="chip-button"
                       style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
                     >
                       <SvgIcon name="pin" size={12} />
-                      <span>Hărți</span>
+                      <span>Rută Maps</span>
                     </a>
                     <button
                       type="button"
@@ -554,7 +547,8 @@ export function ProB2BCalendar({
                       <span>În Calendar</span>
                     </button>
                   </div>
-                )}
+                  )
+                })()}
 
                 <div className="sms-pill-row">
                   <span className={`sms-pill ${smsSent > 0 ? "sent" : ""}`}>
