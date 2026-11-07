@@ -1,5 +1,6 @@
 import React, { Component, useEffect, useState } from "react"
 import { api, ApiFailure, type ApiUser } from "../api"
+import { SvgIcon } from "./SvgIcon"
 
 // ------------------------------------------------------------------ 1. Real 500 Error Boundary
 type ErrorBoundaryProps = { children: React.ReactNode }
@@ -23,15 +24,26 @@ export class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
     if (this.state.hasError) {
       return (
         <main className="app-shell" role="alert" aria-live="assertive" style={{ padding: 28, textAlign: "center" }}>
-          <div className="empty-state" style={{ marginTop: 48 }}>
-            <div style={{ fontSize: 44, marginBottom: 12 }}>⚠️ 500</div>
-            <strong>Ceva nu a funcționat corect</strong>
-            <p style={{ margin: "10px 0 18px", opacity: 0.85 }}>
-              Echipa tehnică REZOLV Sibiu a primit automat raportul de eroare ({this.state.message}).
+          <div className="section-block" style={{ marginTop: 48, padding: 24, maxWidth: 440, marginInline: "auto" }}>
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 24,
+                fontWeight: 600,
+                color: "var(--red)",
+                marginBottom: 8,
+              }}
+            >
+              Eroare 500
+            </div>
+            <strong>Interfața a întâmpinat o eroare</strong>
+            <p style={{ margin: "8px 0 16px", color: "var(--text-secondary)", fontSize: 13 }}>
+              Raportul tehnic a fost transmis automat ({this.state.message}).
             </p>
             <button
               type="button"
               className="primary-button"
+              style={{ width: "100%" }}
               onClick={() => {
                 this.setState({ hasError: false, message: "" })
                 window.location.hash = ""
@@ -51,16 +63,29 @@ export class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
 export function NotFoundScreen({ onGoHome }: { onGoHome: () => void }) {
   return (
     <main className="app-shell" role="main" aria-labelledby="not-found-title" style={{ padding: 28 }}>
-      <div className="empty-state" style={{ marginTop: 48, textAlign: "center" }}>
-        <div style={{ fontSize: 48, fontWeight: 800, color: "#38bdf8", marginBottom: 8 }}>404</div>
-        <strong id="not-found-title" style={{ fontSize: 20 }}>
+      <div
+        className="section-block"
+        style={{ marginTop: 48, padding: 24, textAlign: "center", maxWidth: 440, marginInline: "auto" }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 28,
+            fontWeight: 600,
+            color: "var(--navy)",
+            marginBottom: 8,
+          }}
+        >
+          404
+        </div>
+        <strong id="not-found-title" style={{ fontSize: 18 }}>
           Pagina nu a fost găsită
         </strong>
-        <p style={{ margin: "10px 0 20px", opacity: 0.85 }}>
+        <p style={{ margin: "8px 0 16px", color: "var(--text-secondary)", fontSize: 13 }}>
           Adresa pe care ai încercat să o accesezi nu există sau a fost mutată în cadrul platformei REZOLV Sibiu.
         </p>
-        <button type="button" className="primary-button" onClick={onGoHome}>
-          ← Înapoi la pagina principală
+        <button type="button" className="primary-button" style={{ width: "100%" }} onClick={onGoHome}>
+          Înapoi la pagina principală
         </button>
       </div>
     </main>
@@ -97,18 +122,18 @@ export function NetworkStatusBanner() {
       role="status"
       aria-live="polite"
       style={{
-        background: offline ? "#991b1b" : "#92400e",
+        background: offline ? "var(--red)" : "var(--amber)",
         color: "#fff",
         padding: "8px 16px",
-        fontSize: 13,
-        fontWeight: 600,
+        fontSize: 12,
+        fontWeight: 500,
         textAlign: "center",
         zIndex: 9999,
       }}
     >
       {offline
-        ? "📡 Ești offline. Afișăm datele salvate în cache până la reconectare."
-        : `🐢 Conexiune lentă detectată (${slowInfo?.latencyMs} ms). Datele sunt optimizate și comprimate automat.`}
+        ? "Mod offline activ — sunt afișate datele salvate local până la reconectare."
+        : `Conexiune lentă (${slowInfo?.latencyMs} ms) — transferul de date este comprimat automat.`}
     </div>
   )
 }
@@ -131,11 +156,11 @@ export function LegalModal({
         setDoc({
           title:
             kind === "privacy"
-              ? "Politică de Confidențialitate (GDPR)"
-              : "Termeni și Condiții — REZOLV Sibiu",
+              ? "Politică de confidențialitate (GDPR)"
+              : "Termeni și condiții — REZOLV Sibiu",
           sections: [
             {
-              heading: "Protecția datelor & Transparență",
+              heading: "Protecția datelor și transparență",
               body: "REZOLV Sibiu respectă Regulamentul (UE) 2016/679 (GDPR). Îți poți exporta sau șterge contul și datele în orice moment din secțiunea Profil.",
             },
           ],
@@ -149,16 +174,18 @@ export function LegalModal({
         <div className="modal-handle" />
         <div className="modal-title">{doc?.title ?? "Se încarcă..."}</div>
         {doc?.controller && (
-          <small style={{ display: "block", marginBottom: 12, opacity: 0.75 }}>{doc.controller}</small>
+          <small style={{ display: "block", marginBottom: 12, color: "var(--text-secondary)" }}>
+            {doc.controller}
+          </small>
         )}
         {(doc?.sections ?? []).map((s: any, i: number) => (
           <div key={i} style={{ marginBottom: 14, textAlign: "left" }}>
-            <strong style={{ display: "block", marginBottom: 4 }}>{s.heading}</strong>
-            <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, opacity: 0.9 }}>{s.body}</p>
+            <strong style={{ display: "block", marginBottom: 4, fontSize: 13 }}>{s.heading}</strong>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--text-secondary)" }}>{s.body}</p>
           </div>
         ))}
-        <button type="button" className="primary-button" onClick={onClose}>
-          Am înțeles
+        <button type="button" className="primary-button" style={{ width: "100%" }} onClick={onClose}>
+          Închide
         </button>
       </div>
     </div>
@@ -197,70 +224,71 @@ export function CookieConsentBanner({
       aria-label="Consimțământ module cookie (GDPR)"
       style={{
         position: "fixed",
-        bottom: 14,
-        left: 14,
-        right: 14,
-        maxWidth: 560,
+        bottom: 16,
+        left: 16,
+        right: 16,
+        maxWidth: 520,
         margin: "0 auto",
-        background: "rgba(11, 25, 44, 0.97)",
-        color: "#f8fafc",
-        border: "1px solid rgba(56, 189, 248, 0.35)",
-        borderRadius: 16,
-        padding: "14px 16px",
-        boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
+        background: "var(--surface)",
+        color: "var(--text-primary)",
+        border: "1px solid var(--border-strong)",
+        borderRadius: 14,
+        padding: 16,
+        boxShadow: "0 8px 24px rgba(15, 23, 42, 0.12)",
         zIndex: 9500,
-        fontSize: 13,
+        fontSize: 12,
       }}
     >
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>🍪 Confidențialitate &amp; Cookie-uri (GDPR)</div>
-      <p style={{ margin: "0 0 10px", opacity: 0.88, lineHeight: 1.45 }}>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
+        Confidențialitate și module cookie (GDPR)
+      </div>
+      <p style={{ margin: "0 0 12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
         Folosim cookie-uri strict necesare pentru sesiunea de autentificare și, cu acordul tău, telemetrie anonimă
-        pentru îmbunătățirea platformei în Sibiu. Citește{" "}
+        pentru funcționarea platformei în Sibiu. Consultă{" "}
         <button
           type="button"
           onClick={() => onOpenLegal("privacy")}
-          style={{ background: "none", border: "none", color: "#38bdf8", textDecoration: "underline", padding: 0, cursor: "pointer" }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--navy)",
+            textDecoration: "underline",
+            padding: 0,
+            fontWeight: 500,
+          }}
         >
-          Politica de Confidențialitate
+          Politica de confidențialitate
         </button>{" "}
         și{" "}
         <button
           type="button"
           onClick={() => onOpenLegal("terms")}
-          style={{ background: "none", border: "none", color: "#38bdf8", textDecoration: "underline", padding: 0, cursor: "pointer" }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--navy)",
+            textDecoration: "underline",
+            padding: 0,
+            fontWeight: 500,
+          }}
         >
-          Termenii
+          Termenii și condițiile
         </button>
         .
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button
           type="button"
+          className="primary-button compact"
+          style={{ marginTop: 0 }}
           onClick={() => choose("all")}
-          style={{
-            background: "#0284c7",
-            color: "#fff",
-            border: "none",
-            borderRadius: 10,
-            padding: "8px 14px",
-            fontWeight: 700,
-            cursor: "pointer",
-          }}
         >
           Acceptă toate
         </button>
         <button
           type="button"
+          className="outline-button compact"
           onClick={() => choose("essential")}
-          style={{
-            background: "rgba(255,255,255,0.1)",
-            color: "#e2e8f0",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 10,
-            padding: "8px 14px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
         >
           Doar esențiale
         </button>
@@ -337,14 +365,20 @@ export function PasswordResetModal({
               />
             </div>
             {error && <div className="form-error">{error}</div>}
-            <button type="button" className="primary-button" disabled={busy || !email.trim()} onClick={sendRequest}>
+            <button
+              type="button"
+              className="primary-button"
+              style={{ width: "100%" }}
+              disabled={busy || !email.trim()}
+              onClick={sendRequest}
+            >
               {busy ? "Se trimite..." : "Trimite codul de resetare"}
             </button>
           </>
         ) : (
           <>
             <p>{info || "Introdu codul primit pe email și noua parolă (minim 8 caractere, litere și cifre)."}</p>
-            <div className="label">Cod / Token de resetare</div>
+            <div className="label">Cod de resetare</div>
             <div className="input-shell">
               <input
                 className="field"
@@ -361,13 +395,14 @@ export function PasswordResetModal({
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minim 8 caractere (litere + cifre)"
+                placeholder="Minim 8 caractere (litere și cifre)"
               />
             </div>
             {error && <div className="form-error">{error}</div>}
             <button
               type="button"
               className="primary-button"
+              style={{ width: "100%" }}
               disabled={busy || !token.trim() || newPassword.length < 8}
               onClick={confirmNewPassword}
             >
@@ -375,7 +410,12 @@ export function PasswordResetModal({
             </button>
           </>
         )}
-        <button type="button" className="modal-later" onClick={onClose} style={{ background: "none", border: "none", width: "100%" }}>
+        <button
+          type="button"
+          className="modal-later"
+          onClick={onClose}
+          style={{ background: "none", border: "none", width: "100%" }}
+        >
           Anulează
         </button>
       </div>
@@ -426,7 +466,7 @@ export function AccountSecurityAndGdprCard({
       const res = await api.confirmVerifyEmail(verToken.trim())
       onUserUpdated(res.user)
       setVerifying(false)
-      setNotice("✓ Adresa de email a fost verificată cu succes!")
+      setNotice("Adresa de email a fost verificată.")
     } catch (e) {
       setNotice(e instanceof ApiFailure ? e.message : "Cod invalid.")
     } finally {
@@ -446,7 +486,7 @@ export function AccountSecurityAndGdprCard({
       a.download = `rezolv-gdpr-export-${user.id}.json`
       a.click()
       URL.revokeObjectURL(url)
-      setNotice("✓ Arhiva cu datele tale personale (GDPR JSON) a fost descărcată.")
+      setNotice("Arhiva cu datele personale (GDPR JSON) a fost descărcată.")
     } catch (e) {
       setNotice(e instanceof ApiFailure ? e.message : "Exportul nu a putut fi generat.")
     } finally {
@@ -474,18 +514,9 @@ export function AccountSecurityAndGdprCard({
       style={{ marginTop: 12, display: "grid", gap: 10 }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <strong>Securitate &amp; Date Personale (GDPR)</strong>
-        <span
-          style={{
-            fontSize: 12,
-            padding: "3px 10px",
-            borderRadius: 99,
-            fontWeight: 700,
-            background: isVerified ? "rgba(16,185,129,0.16)" : "rgba(245,158,11,0.18)",
-            color: isVerified ? "#10b981" : "#f59e0b",
-          }}
-        >
-          {isVerified ? "✓ Email verificat" : "⚠️ Email neverificat"}
+        <strong style={{ marginBottom: 0 }}>Securitate și date personale (GDPR)</strong>
+        <span className={`status ${isVerified ? "confirmed" : "pending"}`}>
+          {isVerified ? "Email verificat" : "Email neverificat"}
         </span>
       </div>
 
@@ -505,47 +536,66 @@ export function AccountSecurityAndGdprCard({
               placeholder="Cod verificare email"
             />
           </div>
-          <button type="button" className="primary-button compact" disabled={busy || !verToken.trim()} onClick={submitVerifyToken}>
+          <button
+            type="button"
+            className="primary-button compact"
+            disabled={busy || !verToken.trim()}
+            onClick={submitVerifyToken}
+          >
             Confirmă adresa de email
           </button>
         </div>
       )}
 
       {notice && (
-        <div role="status" aria-live="polite" style={{ fontSize: 13, color: "#38bdf8", fontWeight: 600 }}>
+        <div role="status" aria-live="polite" style={{ fontSize: 12, color: "var(--navy)", fontWeight: 500 }}>
           {notice}
         </div>
       )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button type="button" className="outline-button compact" disabled={busy} onClick={exportGdpr}>
-          📥 Exportă datele mele (GDPR)
+          <SvgIcon name="download" size={14} />
+          <span>Exportă datele mele (GDPR)</span>
         </button>
         <button
           type="button"
           className="outline-button compact"
-          style={{ borderColor: "rgba(239,68,68,0.45)", color: "#ef4444" }}
+          style={{ borderColor: "rgba(220,38,38,0.3)", color: "var(--red)" }}
           disabled={busy}
           onClick={() => setConfirmingDelete(true)}
         >
-          🗑️ Șterge contul și datele
+          <SvgIcon name="trash" size={14} />
+          <span>Șterge contul și datele</span>
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 14, fontSize: 12.5, opacity: 0.8 }}>
+      <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--text-secondary)" }}>
         <button
           type="button"
           onClick={() => onOpenLegal("privacy")}
-          style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", padding: 0, cursor: "pointer" }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "inherit",
+            textDecoration: "underline",
+            padding: 0,
+          }}
         >
-          Politică de Confidențialitate (GDPR)
+          Politică de confidențialitate (GDPR)
         </button>
         <button
           type="button"
           onClick={() => onOpenLegal("terms")}
-          style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", padding: 0, cursor: "pointer" }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "inherit",
+            textDecoration: "underline",
+            padding: 0,
+          }}
         >
-          Termeni și Condiții
+          Termeni și condiții
         </button>
       </div>
 
@@ -555,17 +605,17 @@ export function AccountSecurityAndGdprCard({
             <div className="modal-handle" />
             <div className="modal-title">Ștergi definitiv contul și datele?</div>
             <p>
-              Conform Art. 17 GDPR (Dreptul la ștergere), contul tău ({user.email}), istoricul programărilor și
-              datele personale vor fi șterse ireversibil.
+              Conform Art. 17 GDPR (Dreptul la ștergere), contul tău ({user.email}), istoricul programărilor și datele
+              personale vor fi șterse ireversibil.
             </p>
             <button
               type="button"
               className="primary-button"
-              style={{ background: "#dc2626" }}
+              style={{ background: "var(--red)", borderColor: "var(--red)", width: "100%" }}
               disabled={busy}
               onClick={executeDeleteAccount}
             >
-              {busy ? "Se șterg datele..." : "Da, șterge definitiv contul meu"}
+              {busy ? "Se șterg datele..." : "Confirmă ștergerea definitivă"}
             </button>
             <button
               type="button"

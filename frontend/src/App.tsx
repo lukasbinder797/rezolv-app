@@ -23,6 +23,7 @@ import {
 } from "./components/ProductionComplianceSuite"
 import { SuperAdminDashboard } from "./components/SuperAdminDashboard"
 import { FeedbackWidget } from "./components/FeedbackWidget"
+import { SvgIcon } from "./components/SvgIcon"
 
 type Role = "client" | "pro"
 type ClientTab = "home" | "search" | "bookings" | "profile"
@@ -190,7 +191,7 @@ function Brand() {
       </div>
       <div>
         <div className="brand-name">rezolv</div>
-        <div className="brand-tagline">SERVICII & MEȘTERI • SIBIU</div>
+        <div className="brand-tagline">Servicii și meșteri · Sibiu</div>
       </div>
     </div>
   )
@@ -282,16 +283,15 @@ function Login({ onAuth }: { onAuth: (user: ApiUser) => void }) {
 
         <section className="login-intro">
           <div className="eyebrow">
-            {mode === "login" ? "BINE AI VENIT" : "CREEAZĂ CONT"}
+            {mode === "login" ? "Autentificare" : "Înregistrare cont"}
           </div>
           <div className="display-title">
-            Găsește ajutorul
+            Meșteri și ateliere
             <br />
-            de care ai nevoie.
+            verificate în Sibiu.
           </div>
           <div className="lead">
-            Conectează-te pentru a continua sau creează un cont nou în câteva
-            secunde.
+            Conectează-te pentru a programa o intervenție sau pentru a gestiona agenda tehnică.
           </div>
         </section>
 
@@ -550,7 +550,7 @@ function BookingCard({
         <div className="grow">
           <strong>{booking.service_name}</strong>
           <small>
-            Meșter: {booking.professional.name} • 📍 {booking.neighborhood ?? "Sibiu"}
+            Meșter: {booking.professional.name} · {booking.neighborhood ?? "Sibiu"}
           </small>
         </div>
         <span className={`status ${booking.status}`}>
@@ -569,26 +569,26 @@ function BookingCard({
       {booking.status === "estimated" && (
         <div className="estimate-offer-box" onClick={(e) => e.stopPropagation()}>
           <div className="estimate-offer-head">
-            <span>📋 Estimare Primită de la Meșter</span>
-            <span>0% Comision</span>
+            <span>Fișă de deviz primită de la meșter</span>
+            <span>0% comision</span>
           </div>
           <div className="estimate-offer-grid">
             <div>
-              <small>Preț Estimat</small>
+              <small>Tarif estimat</small>
               <strong>{booking.quote_price} RON</strong>
             </div>
             <div>
-              <small>Durată Lucrare</small>
+              <small>Durată lucrare</small>
               <strong>{booking.quote_duration ?? "1.5 ore"}</strong>
             </div>
             <div>
-              <small>Slot Propunere</small>
+              <small>Interval propus</small>
               <strong>{booking.scheduled_for ?? "Mâine, 11:00"}</strong>
             </div>
           </div>
           {(booking.pro_notes || booking.estimate?.pro_notes) && (
-            <p style={{ fontSize: 11, color: "var(--navy)", margin: "0 0 10px" }}>
-              <b>Notă meșter:</b> „{booking.pro_notes ?? booking.estimate?.pro_notes}”
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 10px" }}>
+              <b>Notă tehnică:</b> „{booking.pro_notes ?? booking.estimate?.pro_notes}”
             </p>
           )}
           {onAcceptEstimate && (
@@ -597,14 +597,15 @@ function BookingCard({
                 className="primary-button field-btn-giant"
                 onClick={() => onAcceptEstimate(booking)}
               >
-                ✓ Acceptă Estimarea și Blochează Ora în Calendar
+                <SvgIcon name="check" size={16} />
+                <span>Acceptă devizul și blochează ora</span>
               </Pressable>
               {onDeclineEstimate && (
                 <Pressable
                   className="outline-button compact"
                   onClick={() => onDeclineEstimate(booking)}
                 >
-                  Cere altă oră / Revizuiește
+                  Solicită alt interval orar
                 </Pressable>
               )}
             </div>
@@ -615,9 +616,9 @@ function BookingCard({
       {/* Active Twilio Anti-No-Show SMS Reminders Badge */}
       {booking.status === "accepted" && (smsSent > 0 || smsScheduled > 0) && (
         <div className="sms-pill-row">
-          <span className="sms-pill sent">✓ Slot blocat în Calendar</span>
+          <span className="sms-pill sent">Slot confirmat în agendă</span>
           <span className="sms-pill">
-            📲 Anti No-Show SMS (24h & 2h): {smsScheduled} active / {smsSent} trimise
+            Remindere SMS (24h / 2h): {smsScheduled} programate · {smsSent} livrate
           </span>
         </div>
       )}
@@ -628,41 +629,40 @@ function BookingCard({
           style={{
             margin: "8px 0",
             padding: "8px 12px",
-            background: "#ecfdf5",
+            background: "var(--soft-green)",
             borderRadius: 8,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             fontSize: 12,
-            border: "1px solid #a7f3d0",
+            border: "1px solid rgba(21, 128, 61, 0.22)",
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <span>
-            📞 Contact meșter: <strong>{booking.professional.phone}</strong>
+          <span className="tabular">
+            Contact meșter: <strong>{booking.professional.phone}</strong>
           </span>
           <a
             href={`tel:${booking.professional.phone.replace(/\s+/g, "")}`}
             style={{
-              color: "#065f46",
-              fontWeight: "bold",
+              color: "var(--green)",
+              fontWeight: 600,
               textDecoration: "none",
-              padding: "4px 8px",
-              background: "white",
+              padding: "4px 10px",
+              background: "var(--surface)",
               borderRadius: 6,
-              border: "1px solid #6ee7b7",
+              border: "1px solid rgba(21, 128, 61, 0.28)",
             }}
           >
-            Sună meșterul
+            Apel direct
           </a>
         </div>
       )}
 
       <div className="payment-note">
         <span className="inline-meta">
-          <Icon file="4243a.svg" /> Plata direct la meșter la finalizare (0% comision)
+          <SvgIcon name="check" size={14} /> Plata direct la meșter la finalizare (0% comision)
         </span>
-        <span>→</span>
       </div>
       {footer}
     </div>
@@ -710,10 +710,10 @@ function ClientHome({
             style={{
               width: 44,
               height: 44,
-              borderRadius: 14,
-              background: "white",
-              padding: 3,
-              boxShadow: "0 4px 14px rgba(2,132,199,0.18)",
+              borderRadius: 10,
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              padding: 4,
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
@@ -722,41 +722,41 @@ function ClientHome({
             <img
               src={assetUrl("rezolv-logo.png")}
               alt="REZOLV"
-              style={{ width: 38, height: 38, objectFit: "contain" }}
+              style={{ width: 36, height: 36, objectFit: "contain" }}
             />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span
                 style={{
-                  font: "700 11px/14px 'Inter:Bold'",
-                  color: "var(--aqua)",
-                  letterSpacing: "1px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "var(--navy)",
                 }}
               >
-                REZOLV
+                REZOLV Sibiu
               </span>
               <span
                 style={{
-                  fontSize: 9,
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
                   padding: "1px 6px",
-                  background: "#e0f2fe",
-                  color: "#0369a1",
+                  background: "var(--surface-raised)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border)",
                   borderRadius: 6,
-                  fontWeight: 700,
+                  fontWeight: 500,
                 }}
               >
-                PILOT SIBIU
+                {user.neighborhood || "Hipodrom"}
               </span>
             </div>
-            <div
-              className="screen-title"
-              style={{ margin: "1px 0 0", font: "18px/22px 'Inter:Bold'" }}
-            >
-              Bună, {user.name.split(" ")[0]}!
+            <div className="screen-title" style={{ margin: "2px 0 0", fontSize: 18, lineHeight: "24px" }}>
+              Servicii și intervenții locale
             </div>
-            <small style={{ color: "var(--muted)", fontSize: 11 }}>
-              📍 {user.neighborhood || "Hipodrom"}, Sibiu
+            <small style={{ color: "var(--text-secondary)", fontSize: 12 }}>
+              Cont client · {user.name}
             </small>
           </div>
         </div>
@@ -765,7 +765,7 @@ function ClientHome({
           className="avatar"
           onClick={onProfile}
         >
-          <img alt={user.name} src={assetUrl("ab11a.png")} />
+          {user.initials || "LB"}
         </Pressable>
       </header>
 
@@ -778,84 +778,24 @@ function ClientHome({
         />
       </div>
 
-      {/* Trust & Guarantee Bar */}
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          overflowX: "auto",
-          padding: "4px 2px 8px",
-          scrollbarWidth: "none",
-        }}
-      >
-        <span
-          style={{
-            whiteSpace: "nowrap",
-            fontSize: 10,
-            fontWeight: "bold",
-            padding: "5px 10px",
-            background: "#f0fdf4",
-            color: "#166534",
-            borderRadius: 999,
-            border: "1px solid #bbf7d0",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          🛡️ Firme Verificate CUI
-        </span>
-        <span
-          style={{
-            whiteSpace: "nowrap",
-            fontSize: 10,
-            fontWeight: "bold",
-            padding: "5px 10px",
-            background: "#eff6ff",
-            color: "#1e40af",
-            borderRadius: 999,
-            border: "1px solid #bfdbfe",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          ⚡ 0% Comision per Lucrare
-        </span>
-        <span
-          style={{
-            whiteSpace: "nowrap",
-            fontSize: 10,
-            fontWeight: "bold",
-            padding: "5px 10px",
-            background: "#faf5ff",
-            color: "#6b21a8",
-            borderRadius: 999,
-            border: "1px solid #e9d5ff",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          📲 SMS 24h & 2h Anti No-Show
-        </span>
-        <span
-          style={{
-            whiteSpace: "nowrap",
-            fontSize: 10,
-            fontWeight: "bold",
-            padding: "5px 10px",
-            background: "#f8fafc",
-            color: "#334155",
-            borderRadius: 999,
-            border: "1px solid #e2e8f0",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          💳 Plată Directă la Meșter
-        </span>
+      {/* Cohesive Technical Guarantee Grid */}
+      <div className="trust-strip">
+        <div className="trust-strip-item">
+          <span className="trust-strip-dot" />
+          <span>Firme verificate CUI</span>
+        </div>
+        <div className="trust-strip-item">
+          <span className="trust-strip-dot" />
+          <span>0% comision lucrare</span>
+        </div>
+        <div className="trust-strip-item">
+          <span className="trust-strip-dot" />
+          <span>Remindere SMS 24h / 2h</span>
+        </div>
+        <div className="trust-strip-item">
+          <span className="trust-strip-dot" />
+          <span>Plată direct la meșter</span>
+        </div>
       </div>
 
       {reviewable && (
@@ -1036,33 +976,33 @@ function Discovery({
             >
               {analyzing ? (
                 <>
-                  <span className="spinner" /> Analizăm...
+                  <span className="spinner" /> Se verifică...
                 </>
               ) : (
-                <>Analizează cu AI →</>
+                <>Identifică serviciul →</>
               )}
             </Pressable>
           </div>
         </div>
         <div className="ai-card">
-          <strong>Asistentul AI identifică serviciul potrivit</strong>
+          <strong>Triaj tehnic automat pentru intervenții în Sibiu</strong>
           <span>
-            Descrierea și pozele sunt folosite doar pentru această recomandare.
+            Descrierea și fotografiile sunt folosite exclusiv pentru selectarea specializării.
           </span>
         </div>
       </div>
       {recommendation && (
         <section className="ai-result" aria-live="polite">
           <div className="result-kicker">
-            <span className="ai-spark">AI</span>
-            Recomandare pregătită
+            <span className="ai-spark">RO</span>
+            Recomandare tehnică
           </div>
           <div className="result-service">
             <div className="category-icon blue">
               <Icon file={recommendation.icon} />
             </div>
             <div className="grow">
-              <small>AI-ul recomandă</small>
+              <small>Specializare identificată</small>
               <strong>{recommendation.category}</strong>
             </div>
             <span>{recommendation.urgency}</span>
@@ -1129,7 +1069,7 @@ function Discovery({
               <div className="category-icon blue">
                 <Icon file={icon} />
               </div>
-              <small>SERVICIU POPULAR</small>
+              <small>Solicitat frecvent</small>
               <strong>{name}</strong>
               <span>{price}</span>
               <b>Vezi meșterii →</b>
@@ -1739,7 +1679,7 @@ function ServiceBookingFlow({
                   className={`quick-chip ${neighborhood === z ? "active" : ""}`}
                   onClick={() => setNeighborhood(z)}
                 >
-                  📍 {z}
+                  {z}
                 </Pressable>
               ))}
             </div>
@@ -1769,7 +1709,8 @@ function ServiceBookingFlow({
                   className={`quick-chip ${preferredWindow === w ? "active" : ""}`}
                   onClick={() => setPreferredWindow(w)}
                 >
-                  ⏰ {w}
+                  <SvgIcon name="clock" size={13} />
+                  <span>{w}</span>
                 </Pressable>
               ))}
             </div>
@@ -2049,8 +1990,8 @@ function ClientApp({
       const res = await api.acceptEstimate(b.id)
       await refresh()
       setDialog({
-        title: "✓ Estimare Acceptată & Slot Blocat!",
-        message: `Ai confirmat estimarea de ${res.booking.quote_price} RON (${res.booking.quote_duration}) pe ${res.booking.scheduled_for}. Slotul a fost blocat în calendarul meșterului și vei primi automat remindere SMS cu 24h și 2h înainte de lucrare!`,
+        title: "Estimare acceptată și slot blocat",
+        message: `Ai confirmat estimarea de ${res.booking.quote_price} RON (${res.booking.quote_duration}) pe ${res.booking.scheduled_for}. Slotul a fost blocat în calendarul meșterului și vei primi automat remindere SMS cu 24h și 2h înainte de lucrare.`,
       })
     } catch (e) {
       setDialog({
@@ -2179,10 +2120,10 @@ function ProHeader({
           style={{
             width: 42,
             height: 42,
-            borderRadius: 13,
-            background: "white",
+            borderRadius: 10,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
             padding: 3,
-            boxShadow: "0 4px 12px rgba(2,132,199,0.18)",
             display: "grid",
             placeItems: "center",
             flexShrink: 0,
@@ -2198,16 +2139,35 @@ function ProHeader({
           <div className="pro-name" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span>{user.name}</span>
             {user.pro?.plan === "pro" ? (
-              <span style={{ fontSize: 9, padding: "2px 6px", background: "linear-gradient(135deg, #f59e0b, #d97706)", color: "white", borderRadius: 6, fontWeight: "bold" }}>
-                ★ PRO 0%
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  padding: "1px 6px",
+                  background: "var(--navy)",
+                  color: "var(--white)",
+                  borderRadius: 6,
+                  fontWeight: 500,
+                }}
+              >
+                B2B 0%
               </span>
             ) : (
-              <span style={{ fontSize: 9, padding: "2px 6px", background: "#e2e8f0", color: "#475569", borderRadius: 6 }}>
-                ESSENTIAL
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  padding: "1px 6px",
+                  background: "var(--surface-raised)",
+                  color: "var(--text-secondary)",
+                  borderRadius: 6,
+                }}
+              >
+                Pilot
               </span>
             )}
           </div>
-          <small>{user.pro?.company_name || user.pro?.headline || "Meșter Verificat Sibiu"}</small>
+          <small>{user.pro?.company_name || user.pro?.headline || "Meșter verificat Sibiu"}</small>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2292,13 +2252,13 @@ function QuoteModal({
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal quote-modal">
         <div className="modal-handle" />
-        <div className="modal-title">Estimare Rapidă (2 Click-uri)</div>
+        <div className="modal-title">Trimite deviz și interval</div>
         <p>
           Trimite estimarea către <strong>{booking.client.name}</strong> ({booking.neighborhood ?? "Sibiu"}).
-          Când clientul apasă „Acceptă”, slotul se blochează automat în calendarul tău!
+          La confirmarea clientului, intervalul se blochează automat în agendă.
         </p>
 
-        <div className="label">1. Slot Disponibil în Calendar (Pre-selectat)</div>
+        <div className="label">1. Interval disponibil în agendă</div>
         <div className="chip-row">
           {quickSlots.slice(0, 6).map((slot) => (
             <Pressable
@@ -2306,12 +2266,13 @@ function QuoteModal({
               className={`quick-chip ${selectedSlot?.start_at === slot.start_at ? "active" : ""}`}
               onClick={() => setSelectedSlot(slot)}
             >
-              📅 {slot.label}
+              <SvgIcon name="calendar" size={13} />
+              <span>{slot.label}</span>
             </Pressable>
           ))}
         </div>
 
-        <div className="label">2. Durată Estimată (Atinge un buton)</div>
+        <div className="label">2. Durată estimată</div>
         <div className="chip-row">
           {durationPresets.map(([mins, lbl]) => (
             <Pressable
@@ -2322,12 +2283,13 @@ function QuoteModal({
                 setDurationLabel(lbl)
               }}
             >
-              ⏱️ {lbl}
+              <SvgIcon name="clock" size={13} />
+              <span>{lbl}</span>
             </Pressable>
           ))}
         </div>
 
-        <div className="label">3. Preț Estimat (RON • 0% comision)</div>
+        <div className="label">3. Tarif estimat (RON · 0% comision)</div>
         <div className="chip-row" style={{ marginBottom: 8 }}>
           <Pressable className="quick-chip" onClick={() => adjustPrice(-50)}>
             −50 RON
@@ -2355,7 +2317,7 @@ function QuoteModal({
           <b>RON</b>
         </div>
 
-        <div className="label">Notă scurtă pentru client (opțional)</div>
+        <div className="label">Notă tehnică pentru client (opțional)</div>
         <div className="input-shell">
           <Field
             value={notes}
@@ -2370,7 +2332,7 @@ function QuoteModal({
           disabled={!valid || busy}
           onClick={send}
         >
-          {busy ? "Se trimite estimarea + SMS..." : `✓ Trimite Estimarea (${price} RON • ${durationLabel})`}
+          {busy ? "Se trimite devizul și SMS..." : `Trimite devizul (${price} RON · ${durationLabel})`}
         </Pressable>
         <Pressable className="modal-later" onClick={onClose}>
           Anulează
@@ -2439,9 +2401,9 @@ function ProDashboard({
       <section className="summary-card">
         <div className="summary-top">
           <span>
-            REZUMAT SĂPTĂMÂNAL SIBIU
+            Încasări săptămânale · Sibiu
             <br />
-            (100% ÎNCASAT DE TINE • 0% COMISION)
+            100% încasat direct · 0% comision
           </span>
           <b>
             {data?.week.change_pct == null
@@ -2454,7 +2416,7 @@ function ProDashboard({
         </div>
         <div className="revenue">
           {fmt(data?.week.revenue ?? 0)} <small>RON</small>
-          <span>• {data?.week.jobs ?? 0} lucrări finalizate</span>
+          <span>· {data?.week.jobs ?? 0} lucrări finalizate</span>
         </div>
         <div className="plan-status">
           {planLabel}{" "}
@@ -2468,8 +2430,8 @@ function ProDashboard({
       <section className="section-block pro-section">
         <div className="section-heading">
           <div>
-            Cereri & Estimări{" "}
-            <span className="count">{pending.length} Active</span>
+            Cereri și devize{" "}
+            <span className="count">{pending.length} active</span>
           </div>
           <Pressable
             className="section-link aqua"
@@ -2487,32 +2449,32 @@ function ProDashboard({
         </div>
         {!data && <div className="list-note">Se încarcă...</div>}
         {data && pending.length === 0 && (
-          <div className="list-note">Nu ai cereri noi. Revino în curând!</div>
+          <div className="list-note">Nu există cereri noi în așteptare.</div>
         )}
         {pending.map((b, i) => (
           <div className={`request-card ${i === 0 ? "featured" : ""}`} key={b.id}>
             <div className="request-state">
               <span className={b.status === "estimated" ? "muted-badge" : ""}>
                 {b.status === "estimated"
-                  ? "⏳ Estimare trimisă (așteaptă Accept)"
+                  ? "Deviz trimis · așteaptă confirmarea"
                   : b.urgency_level === "urgent_today"
-                    ? "🚨 URGENT AZI • " + (b.neighborhood ?? "Sibiu")
-                    : "📍 Cerere nouă • " + (b.neighborhood ?? "Sibiu")}
+                    ? "Urgență azi · " + (b.neighborhood ?? "Sibiu")
+                    : "Cerere nouă · " + (b.neighborhood ?? "Sibiu")}
               </span>
               <b>{b.ago}</b>
             </div>
             <strong>{b.service_name}</strong>
             <small>
-              Client: {b.client.name} • 📍 {b.client.address ?? b.neighborhood ?? "Sibiu"}
-              {b.preferred_window ? ` • Interval dorit: ${b.preferred_window}` : ""}
+              Client: {b.client.name} · {b.client.address ?? b.neighborhood ?? "Sibiu"}
+              {b.preferred_window ? ` · Interval dorit: ${b.preferred_window}` : ""}
             </small>
             <div className="client-note">
-              <b>Notă client:</b> “{b.description}”
+              <b>Notă client:</b> „{b.description}”
             </div>
             {b.status === "estimated" && (
               <div className="sms-pill-row">
                 <span className="sms-pill sent">
-                  📋 Deviz propus: {b.quote_price} RON ({b.quote_duration}) • {b.scheduled_for}
+                  Deviz propus: {b.quote_price} RON ({b.quote_duration}) · {b.scheduled_for}
                 </span>
               </div>
             )}
@@ -2529,8 +2491,8 @@ function ProDashboard({
                 onClick={() => onQuote(b)}
               >
                 {b.status === "estimated"
-                  ? "✏️ Modifică Estimarea"
-                  : "📋 Trimite Estimare (2 Click-uri)"}
+                  ? "Modifică devizul"
+                  : "Trimite deviz (2 pași)"}
               </Pressable>
               <Pressable
                 className="field-btn-secondary"
@@ -2548,13 +2510,13 @@ function ProDashboard({
             days={data.calendar.days}
             quickSlots={data.calendar.quick_free_slots}
             onRefresh={onRefresh}
-            onNotice={(msg) => onAction({ title: "Calendar & SMS Actualizat", message: msg })}
+            onNotice={(msg) => onAction({ title: "Agendă și SMS actualizate", message: msg })}
             onError={(title, msg) => onAction({ title, message: msg })}
           />
         )}
         <section className="section-block schedule">
           <div className="section-heading">
-            <div>Intervenții Confirmate Azi</div>
+            <div>Intervenții confirmate azi</div>
             <small>{new Date().toLocaleDateString("ro-RO", { weekday: "long", day: "numeric", month: "long" })}</small>
           </div>
           {data && data.schedule.length === 0 && (
@@ -2566,19 +2528,19 @@ function ProDashboard({
               <div className={`schedule-card ${done ? "green-line" : "blue-line"}`} key={b.id}>
                 <b>
                   {b.time_label.split(", ").pop()}
-                  <small>{done ? "FINALIZAT" : "CONFIRMAT"}</small>
+                  <small>{done ? "Finalizat" : "Confirmat"}</small>
                 </b>
                 <div className="grow">
                   <strong>
                     {b.service_name} ({b.quote_price} RON)
                   </strong>
                   <small>
-                    {b.client.name} • 📍 {b.neighborhood ?? "Sibiu"}
+                    {b.client.name} · {b.neighborhood ?? "Sibiu"}
                     {b.client.address ? ` (${b.client.address})` : ""}
                   </small>
                   {done ? (
                     <span>
-                      Încasat: {b.quote_price} RON (0% comision) • Clientul poate lăsa o recenzie
+                      Încasat: {b.quote_price} RON (0% comision) · Clientul poate lăsa o recenzie
                     </span>
                   ) : (
                     <>
@@ -2586,10 +2548,10 @@ function ProDashboard({
                         <Pressable
                           onClick={() => {
                             if (b.client.phone)
-                              window.location.href = `tel:${b.client.phone.replace(/\s/g, "")}`
+                              window.location.href = `tel:${b.client.phone.replace(/\s+/g, "")}`
                           }}
                         >
-                          📞 Sună clientul
+                          Apel client
                         </Pressable>
                         <Pressable
                           onClick={() =>
@@ -2600,11 +2562,11 @@ function ProDashboard({
                             )
                           }
                         >
-                          🗺️ Navigație Waze Sibiu
+                          Navigație Waze
                         </Pressable>
                       </span>
                       <Pressable className="complete-job-button" onClick={() => onComplete(b)}>
-                        ✓ Marchează ca finalizată
+                        Marchează ca finalizată
                       </Pressable>
                     </>
                   )}
@@ -2790,32 +2752,32 @@ function Subscription({
         <small>Model SaaS (0% comision per lucrare • fără dezintermediere)</small>
       </div>
       <div className="pricing-card premium">
-        <div className="promoted-ribbon">STANDARD B2B SIBIU</div>
+        <div className="promoted-ribbon">Standard B2B Sibiu</div>
         <div className="tier-head">
-          <span>CRM PRO PROMOVAT</span>
-          <b>★ 0% Comision</b>
+          <span>Abonament B2B complet</span>
+          <b>0% comision</b>
         </div>
         <div className="price">
           39 EUR <small>/ lună (195 RON)</small>
         </div>
         <ul>
           <li>0% comision per lucrare — încasezi 100% direct de la client</li>
-          <li>Calendar B2B Mobile-First cu blocare automată de slot</li>
-          <li>Motor SMS Anti-No-Show (Twilio 24h & 2h înainte de lucrare)</li>
-          <li>Sistem de Ofertare Flexibilă (Estimare Preț + Durată)</li>
-          <li>Badge „Meșter Verificat CUI” & Prioritate în Sibiu</li>
+          <li>Agendă de teren B2B cu blocare automată a intervalului</li>
+          <li>Remindere SMS automate (24h și 2h înainte de lucrare)</li>
+          <li>Devize rapide (tarif estimat și durată)</li>
+          <li>Verificare CUI și afișare prioritară în Sibiu</li>
         </ul>
         <Pressable
           className="primary-button"
           disabled={!sub || plan === "pro"}
           onClick={() => choose("pro")}
         >
-          {plan === "pro" ? "Abonament 39 EUR/lună Activ" : "Activează CRM 39 EUR / lună"}
+          {plan === "pro" ? "Abonament 39 EUR/lună activ" : "Activează planul 39 EUR / lună"}
         </Pressable>
       </div>
       <div className="pricing-card">
         <div className="tier-head">
-          <span>START PILOT SIBIU</span>
+          <span>Start Pilot Sibiu</span>
           <b>{plan === "essential" ? "Activ" : ""}</b>
         </div>
         <div className="price">
@@ -3254,9 +3216,9 @@ function ProApp({
             setQuote(null)
             await refresh()
             setDialog({
-              title: "Estimare trimisă prin SMS!",
+              title: "Deviz trimis prin SMS",
               message:
-                "Clientul a primit estimarea de preț, durată și interval. Imediat ce apasă „Acceptă Estimarea”, slotul se blochează în calendarul tău și se programează reminderele SMS (24h & 2h).",
+                "Clientul a primit estimarea de tarif, durată și interval. Imediat ce confirmă devizul, intervalul se blochează în agendă și se programează reminderele SMS (24h și 2h).",
             })
           }}
         />
@@ -3301,67 +3263,73 @@ function InvestorBar({
   return (
     <>
       <div className="investor-switcher" role="navigation" aria-label="Comutator rapid roluri MVP Sibiu">
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <img
             src={assetUrl("rezolv-logo-64.png")}
             alt="REZOLV"
             style={{ width: 18, height: 18, borderRadius: 4, objectFit: "contain" }}
           />
-          <span className="investor-badge">PILOT SIBIU • MVP</span>
+          <span className="investor-badge">REZOLV Sibiu · Mod demonstrație</span>
         </div>
-        <button
-          type="button"
-          className={currentRole === "client" ? "active" : ""}
-          disabled={busy}
-          onClick={() => trigger("client")}
-        >
-          👤 Client (Sibiu)
-        </button>
-        <button
-          type="button"
-          className={currentRole === "pro" ? "active" : ""}
-          disabled={busy}
-          onClick={() => trigger("pro")}
-        >
-          🔧 Meșter B2B (Calendar 2-Click)
-        </button>
-        <button
-          type="button"
-          className={currentRole === "admin" ? "active" : ""}
-          disabled={busy}
-          onClick={() => trigger("admin")}
-        >
-          🛡️ Super-Admin (White-Glove & KPI)
-        </button>
-        {!isNativeIosApp && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <button
             type="button"
-            style={{
-              background: "#0F7A52",
-              color: "#fff",
-              borderColor: "#14A06C",
-              fontWeight: 800,
-            }}
-            onClick={async () => {
-              if (deferredPrompt) {
-                deferredPrompt.prompt()
-                await deferredPrompt.userChoice
-                setDeferredPrompt(null)
-              } else {
-                setShowInstallModal(true)
-              }
-            }}
+            className={currentRole === "client" ? "active" : ""}
+            disabled={busy}
+            onClick={() => trigger("client")}
           >
-            📲 Instalează ca App
+            <SvgIcon name="user" size={13} />
+            <span>Client</span>
           </button>
-        )}
+          <button
+            type="button"
+            className={currentRole === "pro" ? "active" : ""}
+            disabled={busy}
+            onClick={() => trigger("pro")}
+          >
+            <SvgIcon name="wrench" size={13} />
+            <span>Meșter B2B</span>
+          </button>
+          <button
+            type="button"
+            className={currentRole === "admin" ? "active" : ""}
+            disabled={busy}
+            onClick={() => trigger("admin")}
+          >
+            <SvgIcon name="shield" size={13} />
+            <span>Admin</span>
+          </button>
+          {!isNativeIosApp && (
+            <button
+              type="button"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                color: "#fff",
+                borderColor: "rgba(255,255,255,0.22)",
+              }}
+              onClick={async () => {
+                if (deferredPrompt) {
+                  deferredPrompt.prompt()
+                  await deferredPrompt.userChoice
+                  setDeferredPrompt(null)
+                } else {
+                  setShowInstallModal(true)
+                }
+              }}
+            >
+              <SvgIcon name="download" size={13} />
+              <span>iOS App</span>
+            </button>
+          )}
+        </div>
       </div>
       {showInstallModal && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(11, 30, 51, 0.72)",
+            background: "rgba(15, 23, 42, 0.56)",
+            backdropFilter: "blur(4px)",
             zIndex: 99999,
             display: "flex",
             alignItems: "center",
@@ -3372,14 +3340,13 @@ function InvestorBar({
         >
           <div
             style={{
-              background: "#FFFFFF",
-              borderRadius: 20,
-              maxWidth: 380,
+              background: "var(--surface)",
+              borderRadius: 18,
+              maxWidth: 400,
               width: "100%",
-              padding: "22px 20px",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
-              color: "#142334",
-              fontFamily: "Inter, -apple-system, sans-serif",
+              padding: 20,
+              border: "1px solid var(--border)",
+              color: "var(--text-primary)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -3387,43 +3354,48 @@ function InvestorBar({
               <img
                 src={assetUrl("rezolv-logo-192.png")}
                 alt="REZOLV Sibiu"
-                style={{ width: 48, height: 48, borderRadius: 12, background: "#103F6F", padding: 6 }}
+                style={{ width: 44, height: 44, borderRadius: 10, background: "var(--navy)", padding: 6 }}
               />
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#103F6F" }}>
-                  REZOLV Sibiu — Aplicație iOS / Android
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)" }}>
+                  REZOLV Sibiu — Aplicație mobilă
                 </div>
-                <div style={{ fontSize: 12, color: "#52657A", fontWeight: 600 }}>
-                  Rulează Full-Screen pe telefon (fără browser)
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  Instalare pe ecranul principal (iOS și Android)
                 </div>
               </div>
             </div>
             <div
               style={{
-                background: "#F3F8FA",
-                border: "1px solid #D5E3EC",
-                borderRadius: 14,
-                padding: "14px 14px",
-                fontSize: 13,
+                background: "var(--surface-subtle)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: 12,
+                fontSize: 12,
                 lineHeight: 1.5,
                 marginBottom: 12,
+                color: "var(--text-secondary)",
               }}
             >
-              <div style={{ fontWeight: 800, color: "#103F6F", marginBottom: 8 }}>
-                🍎 Pe iPhone (iOS 15 / 16 / 17 / 18):
+              <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
+                Instalare pe iPhone (iOS 15–18):
               </div>
               <div style={{ marginBottom: 6 }}>
-                <strong>Varianta 1 (Direct din Safari):</strong> Apasă butonul <strong>Share (Partajează ⬆️)</strong> $\rightarrow$ <strong>„Add to Home Screen” (Adaugă la ecranul principal)</strong> $\rightarrow$ <strong>Add</strong>.
+                <strong>Opțiunea 1 (Safari):</strong> Apasă <strong>Partajează (Share)</strong> apoi{" "}
+                <strong>Adaugă la ecranul principal (Add to Home Screen)</strong>.
               </div>
               <div style={{ marginBottom: 6 }}>
-                <strong>Varianta 2 (Profil iOS WebClip):</strong> Apasă butonul verde de mai jos și apoi instalează profilul din <em>Settings $\rightarrow$ Profile Downloaded</em>.
+                <strong>Opțiunea 2 (Profil WebClip):</strong> Descarcă profilul de mai jos și activează-l din{" "}
+                <em>Configurări → Profil descărcat</em>.
               </div>
-              <div style={{ fontSize: 12, color: "#0F7A52", fontWeight: 700, marginTop: 8 }}>
-                ✅ Aplicația apare pe ecranul iPhone-ului cu iconița REZOLV, se deschide 100% Full-Screen (fără browser) și funcționează 24/7 fără laptop!
+              <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 500, marginTop: 8 }}>
+                Aplicația rulează pe întreg ecranul (fără bara de adrese a browserului).
               </div>
             </div>
             <button
               type="button"
+              className="primary-button"
+              style={{ width: "100%", marginTop: 0, marginBottom: 8 }}
               onClick={() => {
                 const appUrl = window.location.href.split("#")[0]
                 const iconUri = assetUrl("rezolv-logo-192.png")
@@ -3492,35 +3464,15 @@ function InvestorBar({
                 a.click()
                 a.remove()
               }}
-              style={{
-                width: "100%",
-                padding: "13px 16px",
-                borderRadius: 12,
-                border: "none",
-                background: "#0F7A52",
-                color: "#FFFFFF",
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                marginBottom: 8,
-              }}
             >
-              ⚡ Descarcă Profilul iOS Full-Screen (.mobileconfig)
+              <SvgIcon name="download" size={15} />
+              <span>Descarcă profilul iOS (.mobileconfig)</span>
             </button>
             <button
               type="button"
+              className="outline-button"
+              style={{ width: "100%", marginTop: 0 }}
               onClick={() => setShowInstallModal(false)}
-              style={{
-                width: "100%",
-                padding: "12px 16px",
-                borderRadius: 12,
-                border: "1px solid #D5E3EC",
-                background: "#F3F8FA",
-                color: "#103F6F",
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
             >
               Închide
             </button>
@@ -3604,8 +3556,8 @@ export default function App() {
             user={user}
             onSwitchRole={(r) => switchRole(r)}
             onLogout={logout}
-            onNotice={(msg) => alert(`ℹ️ ${msg}`)}
-            onError={(title, msg) => alert(`❌ ${title}: ${msg}`)}
+            onNotice={(msg) => alert(msg)}
+            onError={(title, msg) => alert(`${title}: ${msg}`)}
           />
         ) : user.role === "client" ? (
           <ClientApp user={user} onLogout={logout} onUserUpdated={setUser} />

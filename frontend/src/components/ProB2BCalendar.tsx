@@ -5,6 +5,7 @@ import {
   type ApiCalendarDay,
   type ApiQuickSlot,
 } from "../api"
+import { SvgIcon } from "./SvgIcon"
 
 export function ProB2BCalendar({
   days,
@@ -25,7 +26,7 @@ export function ProB2BCalendar({
   const [showManualModal, setShowManualModal] = useState(false)
   const [manualClientName, setManualClientName] = useState("")
   const [manualClientPhone, setManualClientPhone] = useState("+40 74")
-  const [manualService, setManualService] = useState("Intervenție & reparație la domiciliu")
+  const [manualService, setManualService] = useState("Intervenție și reparație la domiciliu")
   const [manualNeighborhood, setManualNeighborhood] = useState("Hipodrom")
   const [manualAddress, setManualAddress] = useState("")
   const [manualPrice, setManualPrice] = useState(250)
@@ -51,7 +52,7 @@ export function ProB2BCalendar({
       return
     }
     if (manualClientPhone.replace(/\D/g, "").length < 9) {
-      onError("Telefon invalid", "Introdu numărul de telefon al clientului pentru reminderele SMS (24h & 2h).")
+      onError("Telefon invalid", "Introdu numărul de telefon al clientului pentru reminderele SMS (24h și 2h).")
       return
     }
     setManualSaving(true)
@@ -71,7 +72,7 @@ export function ProB2BCalendar({
       setManualClientName("")
       setManualAddress("")
       onNotice(
-        `Lucrare telefonică adăugată în CRM (${manualSlotLabel})! Clientul ${manualClientName} a primit SMS-ul de confirmare, iar reminderele de 24h și 2h au fost programate.`,
+        `Lucrare telefonică adăugată în CRM (${manualSlotLabel}). Clientul ${manualClientName} a primit SMS-ul de confirmare, iar reminderele de 24h și 2h au fost programate.`,
       )
       onRefresh()
     } catch (e: any) {
@@ -81,7 +82,10 @@ export function ProB2BCalendar({
     }
   }
 
-  const handleQuickReschedule = async (booking: ApiBooking, slot: { start_at?: number; shift_hours?: number; label: string }) => {
+  const handleQuickReschedule = async (
+    booking: ApiBooking,
+    slot: { start_at?: number; shift_hours?: number; label: string },
+  ) => {
     setBusyId(booking.id)
     try {
       await api.reschedule(booking.id, {
@@ -90,10 +94,10 @@ export function ProB2BCalendar({
         slot_label: slot.label,
       })
       setRescheduleTarget(null)
-      onNotice(`Reprogramat din 2 click-uri pe ${slot.label}. SMS-urile de 24h și 2h au fost actualizate!`)
+      onNotice(`Programare mutată pe ${slot.label}. Reminderele SMS de 24h și 2h au fost actualizate.`)
       onRefresh()
     } catch (e: any) {
-      onError("Conflict în Calendar", e?.message ?? "Nu am putut reprograma.")
+      onError("Conflict în calendar", e?.message ?? "Nu am putut reprograma.")
     } finally {
       setBusyId(null)
     }
@@ -106,7 +110,7 @@ export function ProB2BCalendar({
       const count = res.dispatched?.length ?? 0
       onNotice(
         count > 0
-          ? `Am expediat instant ${count} SMS-uri anti no-show (24h & 2h) către ${booking.client.name}!`
+          ? `Am expediat ${count} remindere SMS (24h și 2h) către ${booking.client.name}.`
           : "Toate reminderele SMS pentru această lucrare au fost deja livrate.",
       )
       onRefresh()
@@ -122,24 +126,24 @@ export function ProB2BCalendar({
     setBusyId(booking.id)
     try {
       await api.complete(booking.id)
-      onNotice(`Lucrarea #${booking.id.slice(0, 8)} a fost marcată ca finalizată!`)
+      onNotice(`Lucrarea #${booking.id.slice(0, 8)} a fost marcată ca finalizată.`)
       onRefresh()
     } catch (e: any) {
-      onError("Eroare Finalizare", e?.message ?? "Nu am putut finaliza lucrarea.")
+      onError("Eroare finalizare", e?.message ?? "Nu am putut finaliza lucrarea.")
     } finally {
       setBusyId(null)
     }
   }
 
   const handleNoShow = async (booking: ApiBooking) => {
-    if (!window.confirm(`Înregistrezi NO-SHOW pentru ${booking.client.name}? (Clientul nu a răspuns la sosire)`)) return
+    if (!window.confirm(`Înregistrezi neprezentare (No-Show) pentru ${booking.client.name}?`)) return
     setBusyId(booking.id)
     try {
       await api.markNoShow(booking.id, "Clientul nu a răspuns la sosire")
-      onNotice(`Programarea #${booking.id.slice(0, 8)} a fost înregistrată ca No-Show.`)
+      onNotice(`Programarea #${booking.id.slice(0, 8)} a fost înregistrată ca neprezentare (No-Show).`)
       onRefresh()
     } catch (e: any) {
-      onError("Eroare No-Show", e?.message ?? "Nu am putut înregistra no-show.")
+      onError("Eroare No-Show", e?.message ?? "Nu am putut înregistra statusul.")
     } finally {
       setBusyId(null)
     }
@@ -148,12 +152,12 @@ export function ProB2BCalendar({
   if (!currentDay) return null
 
   return (
-    <div className="section-block">
-      <div className="section-heading">
+    <div className="section-block" style={{ padding: 16 }}>
+      <div className="section-heading" style={{ marginTop: 0 }}>
         <div>
-          Calendar Teren B2B <span className="count">2-Click</span>
+          Calendar teren B2B <span className="count">2-Click</span>
         </div>
-        <small>Sloturi blocate automat + SMS 24h/2h</small>
+        <small>Blocare automată · SMS 24h / 2h</small>
       </div>
 
       {/* 5-Day Selector Strip */}
@@ -176,47 +180,44 @@ export function ProB2BCalendar({
         })}
       </div>
 
-      {/* CRM Mode: Oversized Button to add a Phone Call Client + Auto SMS 24h/2h */}
-      <div style={{ margin: "10px 0 14px" }}>
+      {/* CRM Mode: Add Phone Call Client + Auto SMS 24h/2h */}
+      <div style={{ margin: "12px 0" }}>
         <div
           role="button"
           tabIndex={0}
           className="pressable primary-button field-btn-giant"
-          style={{
-            background: "linear-gradient(135deg, var(--navy) 0%, #195694 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            boxShadow: "0 6px 16px rgba(16, 63, 111, 0.18)",
-          }}
+          style={{ marginTop: 0 }}
           onClick={() => openManualForSlot()}
         >
-          <span>📞 + Adaugă Lucrare Telefonică (CRM + SMS 24h/2h)</span>
+          <SvgIcon name="phone" size={16} />
+          <span>Adaugă programare telefonică (CRM · SMS)</span>
         </div>
       </div>
 
       {/* Fast Field CRM Form for Phone Bookings */}
       {showManualModal && (
-        <div className="estimate-offer-box" style={{ marginBottom: 16, border: "2px solid var(--navy)" }}>
+        <div className="estimate-offer-box" style={{ marginBottom: 16 }}>
           <div className="estimate-offer-head">
-            <span>📞 PROGRAMARE TELEFONICĂ ÎN CALENDARUL B2B (CRM)</span>
+            <span>Programare telefonică în calendarul B2B</span>
             <span
               className="pressable"
               onClick={() => setShowManualModal(false)}
-              style={{ cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
+              style={{ color: "var(--navy)", fontWeight: 600, fontSize: 12 }}
             >
-              Închide ✕
+              Închide
             </span>
           </div>
-          <p style={{ fontSize: 11, color: "var(--navy)", margin: "4px 0 10px" }}>
-            Adaugă rapid un client care te-a sunat direct. Slotul se blochează în calendar, iar REZOLV îi trimite automat SMS de confirmare + remindere la <strong>24h</strong> și <strong>2h</strong>!
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "4px 0 12px" }}>
+            Înregistrează rapid un client care a sunat direct. Slotul se blochează în agendă și se programează automat
+            SMS-ul de confirmare și reminderele la 24h și 2h.
           </p>
 
-          <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "grid", gap: 12 }}>
             <div>
-              <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>1. Intervalul din Calendar</small>
-              <div className="chip-row" style={{ marginTop: 4 }}>
+              <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
+                1. Intervalul din agendă
+              </small>
+              <div className="chip-row" style={{ marginTop: 6 }}>
                 {quickSlots.slice(0, 6).map((qs) => (
                   <div
                     key={qs.start_at}
@@ -228,7 +229,8 @@ export function ProB2BCalendar({
                       setManualSlotLabel(qs.full_label)
                     }}
                   >
-                    📅 {qs.label}
+                    <SvgIcon name="calendar" size={13} />
+                    <span>{qs.label}</span>
                   </div>
                 ))}
               </div>
@@ -236,30 +238,36 @@ export function ProB2BCalendar({
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div>
-                <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>2. Nume Client</small>
-                <input
-                  className="field"
-                  style={{ width: "100%", marginTop: 4, padding: "9px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
-                  placeholder="Ex: Mircea Dobre"
-                  value={manualClientName}
-                  onChange={(e) => setManualClientName(e.target.value)}
-                />
+                <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>2. Nume client</small>
+                <div className="input-shell" style={{ marginTop: 4 }}>
+                  <input
+                    className="field"
+                    placeholder="Ex: Mircea Dobre"
+                    value={manualClientName}
+                    onChange={(e) => setManualClientName(e.target.value)}
+                  />
+                </div>
               </div>
               <div>
-                <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>3. Telefon Client (pt. SMS)</small>
-                <input
-                  className="field"
-                  style={{ width: "100%", marginTop: 4, padding: "9px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
-                  placeholder="+40 742 889 102"
-                  value={manualClientPhone}
-                  onChange={(e) => setManualClientPhone(e.target.value)}
-                />
+                <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
+                  3. Telefon client (SMS)
+                </small>
+                <div className="input-shell" style={{ marginTop: 4 }}>
+                  <input
+                    className="field"
+                    placeholder="+40 742 889 102"
+                    value={manualClientPhone}
+                    onChange={(e) => setManualClientPhone(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
             <div>
-              <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>4. Cartier din Sibiu & Stradă (pt. Waze)</small>
-              <div className="chip-row" style={{ marginTop: 4 }}>
+              <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
+                4. Cartier și adresă în Sibiu
+              </small>
+              <div className="chip-row" style={{ marginTop: 6 }}>
                 {sibiuZones.map((z) => (
                   <div
                     key={z}
@@ -268,38 +276,42 @@ export function ProB2BCalendar({
                     className={`pressable quick-chip ${manualNeighborhood === z ? "active" : ""}`}
                     onClick={() => setManualNeighborhood(z)}
                   >
-                    📍 {z}
+                    {z}
                   </div>
                 ))}
               </div>
-              <input
-                className="field"
-                style={{ width: "100%", marginTop: 6, padding: "8px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
-                placeholder={`Adresă opțională (ex: Str. Rahovei nr. 14, ${manualNeighborhood})`}
-                value={manualAddress}
-                onChange={(e) => setManualAddress(e.target.value)}
-              />
+              <div className="input-shell" style={{ marginTop: 8 }}>
+                <input
+                  className="field"
+                  placeholder={`Adresă opțională (ex: Str. Rahovei nr. 14, ${manualNeighborhood})`}
+                  value={manualAddress}
+                  onChange={(e) => setManualAddress(e.target.value)}
+                />
+              </div>
             </div>
 
             <div>
-              <small style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)" }}>5. Lucrare & Preț Estimat (RON)</small>
-              <input
-                className="field"
-                style={{ width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 10, border: "1px solid #cbd5e1" }}
-                placeholder="Ex: Înlocuire robinet trecere / Revizie centrală"
-                value={manualService}
-                onChange={(e) => setManualService(e.target.value)}
-              />
-              <div className="chip-row" style={{ marginTop: 6 }}>
+              <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
+                5. Lucrare și tarif estimat (RON)
+              </small>
+              <div className="input-shell" style={{ marginTop: 4 }}>
+                <input
+                  className="field"
+                  placeholder="Ex: Înlocuire robinet trecere / Revizie centrală"
+                  value={manualService}
+                  onChange={(e) => setManualService(e.target.value)}
+                />
+              </div>
+              <div className="chip-row" style={{ marginTop: 8 }}>
                 {[150, 200, 250, 350, 500].map((p) => (
                   <div
                     key={p}
                     role="button"
                     tabIndex={0}
-                    className={`pressable quick-chip ${manualPrice === p ? "active" : ""}`}
+                    className={`pressable quick-chip tabular ${manualPrice === p ? "active" : ""}`}
                     onClick={() => setManualPrice(p)}
                   >
-                    💰 {p} RON
+                    {p} RON
                   </div>
                 ))}
                 {[60, 90, 120].map((m) => (
@@ -307,10 +319,10 @@ export function ProB2BCalendar({
                     key={m}
                     role="button"
                     tabIndex={0}
-                    className={`pressable quick-chip ${manualDuration === m ? "active" : ""}`}
+                    className={`pressable quick-chip tabular ${manualDuration === m ? "active" : ""}`}
                     onClick={() => setManualDuration(m)}
                   >
-                    ⏱️ {m} min
+                    {m} min
                   </div>
                 ))}
               </div>
@@ -320,33 +332,36 @@ export function ProB2BCalendar({
               role="button"
               tabIndex={0}
               className="pressable primary-button field-btn-giant"
-              style={{ marginTop: 6 }}
+              style={{ marginTop: 4 }}
               onClick={manualSaving ? undefined : handleCreateManualBooking}
             >
-              {manualSaving
-                ? "Se blochează slotul și se trimite SMS..."
-                : `✓ Blochează ${manualSlotLabel} & Trimite SMS Clientului`}
+              <SvgIcon name="check" size={16} />
+              <span>
+                {manualSaving
+                  ? "Se blochează slotul și se trimite SMS..."
+                  : `Blochează ${manualSlotLabel} și trimite SMS`}
+              </span>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2-Click Instant Reschedule Bar when an appointment is tapped */}
+      {/* 2-Click Instant Reschedule Bar */}
       {rescheduleTarget && (
-        <div className="estimate-offer-box" style={{ marginBottom: 14 }}>
+        <div className="estimate-offer-box" style={{ marginBottom: 12 }}>
           <div className="estimate-offer-head">
-            <span>CLICK 2: ALEGE NOUA ORĂ PENTRU {rescheduleTarget.client.name.toUpperCase()}</span>
+            <span>Reprogramare rapidă · {rescheduleTarget.client.name}</span>
             <span
               className="pressable"
               onClick={() => setRescheduleTarget(null)}
-              style={{ cursor: "pointer", textDecoration: "underline" }}
+              style={{ color: "var(--navy)", fontWeight: 600, fontSize: 12 }}
             >
-              Închide ✕
+              Închide
             </span>
           </div>
-          <p style={{ fontSize: 11, color: "var(--navy)", margin: "6px 0 8px" }}>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "4px 0 8px" }}>
             Lucrare: <strong>{rescheduleTarget.service_name}</strong> ({rescheduleTarget.neighborhood ?? "Sibiu"}).
-            Atinge un slot liber pentru a muta programarea și a trimite automat SMS clientului:
+            Alege noul interval pentru a muta programarea și a actualiza automat SMS-ul clientului:
           </p>
           <div className="chip-row">
             <div
@@ -355,7 +370,8 @@ export function ProB2BCalendar({
               className="pressable quick-chip active"
               onClick={() => handleQuickReschedule(rescheduleTarget, { shift_hours: 1, label: "Decalat +1 oră" })}
             >
-              ⏱️ +1 oră mai târziu
+              <SvgIcon name="clock" size={13} />
+              <span>+1 oră</span>
             </div>
             <div
               role="button"
@@ -363,7 +379,8 @@ export function ProB2BCalendar({
               className="pressable quick-chip"
               onClick={() => handleQuickReschedule(rescheduleTarget, { shift_hours: 2, label: "Decalat +2 ore" })}
             >
-              ⏱️ +2 ore mai târziu
+              <SvgIcon name="clock" size={13} />
+              <span>+2 ore</span>
             </div>
             {quickSlots.slice(0, 5).map((qs) => (
               <div
@@ -373,7 +390,8 @@ export function ProB2BCalendar({
                 className="pressable quick-chip"
                 onClick={() => handleQuickReschedule(rescheduleTarget, { start_at: qs.start_at, label: qs.full_label })}
               >
-                📅 {qs.label}
+                <SvgIcon name="calendar" size={13} />
+                <span>{qs.label}</span>
               </div>
             ))}
           </div>
@@ -392,7 +410,6 @@ export function ProB2BCalendar({
                 role={isPast ? undefined : "button"}
                 tabIndex={isPast ? -1 : 0}
                 className={`cal-slot-row slot-free ${isPast ? "" : "pressable"}`}
-                style={isPast ? undefined : { cursor: "pointer" }}
                 onClick={
                   isPast
                     ? undefined
@@ -401,12 +418,19 @@ export function ProB2BCalendar({
               >
                 <div className="cal-slot-hour">{slot.hour}</div>
                 <div className="grow">
-                  <small style={{ color: "var(--muted)", fontSize: 11 }}>
-                    {isPast ? "Interval trecut" : "Slot disponibil — atinge pentru programare telefonică"}
+                  <small style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                    {isPast ? "Interval încheiat" : "Interval disponibil · adaugă programare"}
                   </small>
                 </div>
-                <span style={{ fontSize: 10, color: "var(--aqua)", fontFamily: "Inter:Bold" }}>
-                  {isPast ? "TRECUT" : "+ REZERVĂ"}
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: isPast ? "var(--text-muted)" : "var(--navy)",
+                    fontFamily: "var(--font-mono)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {isPast ? "Închis" : "+ Rezervă"}
                 </span>
               </div>
             )
@@ -415,7 +439,9 @@ export function ProB2BCalendar({
           const isEst = bk.status === "estimated"
           const isDone = bk.status === "completed"
           const smsScheduled = (bk.sms_reminders ?? []).filter((s) => s.status === "scheduled").length
-          const smsSent = (bk.sms_reminders ?? []).filter((s) => s.status === "sent" || s.status === "delivered").length
+          const smsSent = (bk.sms_reminders ?? []).filter(
+            (s) => s.status === "sent" || s.status === "delivered",
+          ).length
 
           return (
             <div
@@ -424,97 +450,87 @@ export function ProB2BCalendar({
             >
               <div className="cal-slot-hour">
                 {slot.hour}
-                <small style={{ display: "block", fontSize: 9, color: "var(--muted)" }}>
-                  {bk.quote_duration ?? "1 oră"}
+                <small style={{ display: "block", fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
+                  {bk.quote_duration ?? "60 min"}
                 </small>
               </div>
-              <div className="grow">
-                <strong style={{ fontSize: 13 }}>
-                  {bk.service_name} • {bk.quote_price ?? "—"} RON
+              <div className="grow" style={{ minWidth: 0 }}>
+                <strong style={{ fontSize: 13, display: "block" }} className="tabular">
+                  {bk.service_name} · {bk.quote_price ?? "—"} RON
                 </strong>
-                <small style={{ color: "var(--muted)", fontSize: 10, marginTop: 2, display: "block" }}>
-                  Client: <strong>{bk.client.name}</strong> • 📍 {bk.neighborhood ?? "Sibiu"}
-                  {bk.client_address ? ` • 🏠 ${bk.client_address}` : bk.client.address ? ` • 🏠 ${bk.client.address}` : ""}
-                  {bk.client_phone ? ` • 📞 ${bk.client_phone}` : bk.client.phone ? ` • 📞 ${bk.client.phone}` : ""}
+                <small style={{ color: "var(--text-secondary)", fontSize: 12, marginTop: 2, display: "block" }}>
+                  {bk.client.name} · {bk.neighborhood ?? "Sibiu"}
+                  {bk.client_address
+                    ? ` · ${bk.client_address}`
+                    : bk.client.address
+                      ? ` · ${bk.client.address}`
+                      : ""}
+                  {bk.client_phone
+                    ? ` · ${bk.client_phone}`
+                    : bk.client.phone
+                      ? ` · ${bk.client.phone}`
+                      : ""}
                 </small>
 
                 {/* Quick Field Navigation & Direct Client Call */}
                 {!isDone && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                     {(bk.client_phone || bk.client.phone) && (
                       <a
                         href={`tel:${(bk.client_phone || bk.client.phone)!.replace(/\s+/g, "")}`}
-                        style={{
-                          fontSize: 11,
-                          textDecoration: "none",
-                          padding: "3px 8px",
-                          background: "#e8f5e9",
-                          color: "#2e7d32",
-                          borderRadius: 6,
-                          fontWeight: "bold",
-                        }}
+                        className="chip-button"
+                        style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
                       >
-                        📞 Sună Clientul
+                        <SvgIcon name="phone" size={12} />
+                        <span>Apel client</span>
                       </a>
                     )}
                     <a
                       href={`https://waze.com/ul?q=${encodeURIComponent((bk.client_address || bk.client.address || bk.neighborhood || "Sibiu") + ", Sibiu, Romania")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        fontSize: 11,
-                        textDecoration: "none",
-                        padding: "3px 8px",
-                        background: "#e0f2fe",
-                        color: "#0369a1",
-                        borderRadius: 6,
-                        fontWeight: "bold",
-                      }}
+                      className="chip-button"
+                      style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
                     >
-                      🚙 Waze Sibiu
+                      <SvgIcon name="navigation" size={12} />
+                      <span>Waze</span>
                     </a>
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((bk.client_address || bk.client.address || bk.neighborhood || "Sibiu") + ", Sibiu, Romania")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        fontSize: 11,
-                        textDecoration: "none",
-                        padding: "3px 8px",
-                        background: "#f1f5f9",
-                        color: "#334155",
-                        borderRadius: 6,
-                        fontWeight: "bold",
-                      }}
+                      className="chip-button"
+                      style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
                     >
-                      🗺️ Maps
+                      <SvgIcon name="pin" size={12} />
+                      <span>Hărți</span>
                     </a>
                   </div>
                 )}
 
                 <div className="sms-pill-row">
                   <span className={`sms-pill ${smsSent > 0 ? "sent" : ""}`}>
-                    💬 {smsSent} SMS trimise
+                    SMS livrate: {smsSent}
                   </span>
                   {smsScheduled > 0 && (
                     <span className="sms-pill">
-                      ⏰ {smsScheduled} remindere (24h & 2h) în coadă
+                      În coadă (24h/2h): {smsScheduled}
                     </span>
                   )}
                   {isEst && (
-                    <span className="sms-pill" style={{ background: "#fef3c7", color: "#b45309" }}>
-                      ⏳ Așteaptă Acceptul Clientului
+                    <span className="sms-pill" style={{ background: "var(--soft-amber)", color: "var(--amber)" }}>
+                      Așteaptă confirmarea clientului
                     </span>
                   )}
                 </div>
               </div>
               {!isDone && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <div className="cal-slot-actions" style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                   <div
                     role="button"
                     tabIndex={0}
                     className="pressable choose-button"
-                    style={{ padding: "8px 12px", minHeight: 34, background: "var(--navy)", fontSize: 12 }}
+                    style={{ marginTop: 0 }}
                     onClick={() => setRescheduleTarget(bk)}
                   >
                     {busyId === bk.id ? "..." : "Reprogramează"}
@@ -523,20 +539,34 @@ export function ProB2BCalendar({
                     <button
                       type="button"
                       className="chip-button"
-                      style={{ fontSize: 10, padding: "4px 8px", background: "#dcfce7", color: "#166534", border: "none" }}
+                      style={{
+                        minHeight: 28,
+                        fontSize: 11,
+                        padding: "2px 8px",
+                        background: "var(--soft-green)",
+                        color: "var(--green)",
+                        borderColor: "rgba(21, 128, 61, 0.22)",
+                      }}
                       onClick={() => handleComplete(bk)}
                       title="Marchează lucrarea ca finalizată"
                     >
-                      ✓ Finalizează
+                      Finalizat
                     </button>
                     <button
                       type="button"
                       className="chip-button"
-                      style={{ fontSize: 10, padding: "4px 8px", background: "#fee2e2", color: "#991b1b", border: "none" }}
+                      style={{
+                        minHeight: 28,
+                        fontSize: 11,
+                        padding: "2px 8px",
+                        background: "var(--soft-red)",
+                        color: "var(--red)",
+                        borderColor: "rgba(220, 38, 38, 0.22)",
+                      }}
                       onClick={() => handleNoShow(bk)}
                       title="Raportează client absent (No-Show)"
                     >
-                      🚫 No-Show
+                      Absent
                     </button>
                   </div>
                   {smsScheduled > 0 && (
@@ -544,7 +574,7 @@ export function ProB2BCalendar({
                       role="button"
                       tabIndex={0}
                       className="pressable"
-                      style={{ fontSize: 10, color: "var(--blue)", fontFamily: "Inter:Bold", textDecoration: "underline" }}
+                      style={{ fontSize: 11, color: "var(--navy)", fontWeight: 500 }}
                       onClick={() => handleTriggerSms(bk)}
                     >
                       Trimite SMS acum
