@@ -872,6 +872,8 @@ function Discovery({
   const [recommendation, setRecommendation] = useState<{
     category: string
     specialist: string
+    initials: string
+    company?: string
     reason: string
     price: string
     icon: string
@@ -879,6 +881,15 @@ function Discovery({
     stats: string
     proId?: string
   } | null>(null)
+
+  const quickExamples = [
+    "S-a ars siguranța la tablou și nu am curent la prize",
+    "Centrala termică afișează eroare F28 și caloriferele sunt reci",
+    "Am făcut pană la roată în Sibiu, cauciuc tăiat",
+    "S-a blocat yala la ușa de intrare și nu pot intra",
+    "Mașina de spălat rufe nu mai evacuează apa",
+    "Zugrăvit două camere cu lavabilă și reparații glet",
+  ]
 
   const addPhotos = (files: FileList | null) => {
     if (!files) return
@@ -895,21 +906,33 @@ function Discovery({
       })
   }
 
-  const analyzeProblem = async () => {
-    if (problem.trim().length < 10 || analyzing) return
+  const runTriage = async (rawText: string) => {
+    const clean = rawText.trim()
+    if (clean.length < 6 || analyzing) return
     setAnalyzing(true)
     setRecommendation(null)
     try {
-      const r = await api.aiRecommend(problem.trim(), photos.slice(0, 4))
+      const r = await api.aiRecommend(clean, photos.slice(0, 4))
+      const proName = r.professional?.name ?? "Meșter verificat"
+      const proInitials =
+        r.professional?.initials ??
+        proName
+          .split(" ")
+          .map((p) => p[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()
       setRecommendation({
         category: r.category,
-        specialist: r.professional?.name ?? "Meșter verificat",
+        specialist: proName,
+        initials: proInitials,
+        company: r.professional?.company_name,
         reason: r.reason,
         price: r.price,
         icon: bookingIcon(r.category),
         urgency: r.urgency,
         stats: r.professional
-          ? `Verificat · ${r.professional.rating} din 5 · ${r.professional.jobs} lucrări`
+          ? `Verificat CUI · ★ ${r.professional.rating} · ${r.professional.jobs} lucrări`
           : "Verificat",
         proId: r.professional?.id,
       })
@@ -922,6 +945,8 @@ function Discovery({
       setAnalyzing(false)
     }
   }
+
+  const analyzeProblem = () => runTriage(problem)
 
   return (
     <div className="screen-content discovery">
@@ -939,8 +964,37 @@ function Discovery({
             multiline
             value={problem}
             onChange={setProblem}
-            placeholder="Ex: Curge apă sub chiuvetă și robinetul nu se mai închide..."
+            placeholder="Ex: Nu merge centrala termică, s-a ars siguranța, am făcut pană la roată, s-a blocat ușa..."
           />
+          <div style={{ marginBottom: 10 }}>
+            <small style={{ display: "block", fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
+              Sau testează rapid un scenariu:
+            </small>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {quickExamples.map((ex) => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => {
+                    setProblem(ex)
+                    runTriage(ex)
+                  }}
+                  style={{
+                    fontSize: 11,
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid var(--border-strong)",
+                    background: problem === ex ? "var(--soft-blue)" : "var(--surface-subtle)",
+                    color: problem === ex ? "var(--navy)" : "var(--text-secondary)",
+                    fontWeight: 500,
+                    textAlign: "left",
+                  }}
+                >
+                  {ex.length > 42 ? ex.slice(0, 40) + "…" : ex}
+                </button>
+              ))}
+            </div>
+          </div>
           {photos.length > 0 && (
             <div className="photo-previews">
               {photos.map((photo, index) => (
@@ -971,7 +1025,7 @@ function Discovery({
             </label>
             <Pressable
               className="analyze-button"
-              disabled={problem.trim().length < 10 || analyzing}
+              disabled={problem.trim().length < 6 || analyzing}
               onClick={analyzeProblem}
             >
               {analyzing ? (
@@ -985,16 +1039,16 @@ function Discovery({
           </div>
         </div>
         <div className="ai-card">
-          <strong>Triaj tehnic automat pentru intervenții în Sibiu</strong>
+          <strong>Triaj tehnic automat pe toate cele 12 domenii din Sibiu</strong>
           <span>
-            Descrierea și fotografiile sunt folosite exclusiv pentru selectarea specializării.
+            Recunoaște descrieri în limbaj natural (cu sau fără diacritice) și selectează meșterul autorizat.
           </span>
         </div>
       </div>
       {recommendation && (
         <section className="ai-result" aria-live="polite">
           <div className="result-kicker">
-            <span className="ai-spark">RO</span>
+            <span className="ai-spark">AI</span>
             Recomandare tehnică
           </div>
           <div className="result-service">
@@ -1016,10 +1070,10 @@ function Discovery({
           )}
           <div className="recommended-pro">
             <div className="avatar">
-              <img alt={recommendation.specialist} src={assetUrl("ab11a.png")} />
+              {recommendation.initials}
             </div>
             <div className="grow">
-              <small>Meșter recomandat</small>
+              <small>Meșter recomandat{recommendation.company ? ` · ${recommendation.company}` : ""}</small>
               <strong>{recommendation.specialist}</strong>
               <span>{recommendation.stats}</span>
             </div>
@@ -1371,7 +1425,20 @@ function ServiceBookingFlow({
           if (match) {
             setSelectedProfessional(match)
             if (match.services?.length) {
-              setSelectedService(match.services[0])
+              const normProb = (initialProblem || "")
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+              const bestSrv =
+                match.services.find((s) =>
+                  s.name
+                    .toLowerCase()
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .split(/\s+/)
+                    .some((w) => w.length >= 4 && normProb.includes(w)),
+                ) ?? match.services[0]
+              setSelectedService(bestSrv)
               setStep("details")
             } else {
               setStep("services")

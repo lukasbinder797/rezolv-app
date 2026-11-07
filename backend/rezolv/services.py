@@ -1841,78 +1841,89 @@ def get_payment_invoice_xml(conn, user, payment_id: str) -> dict:
 
 
 # ------------------------------------------------------------- AI assistant
+_RO_DIACRITIC_TABLE = str.maketrans(
+    "ăâîșțşţĂÂÎȘȚŞŢ",
+    "aaiststAAISTST",
+)
+
+
+def normalize_ro(text: str) -> str:
+    """Normalize Romanian text by lowercasing and stripping diacritics for mobile input."""
+    return (text or "").translate(_RO_DIACRITIC_TABLE).lower()
+
+
 AI_RULES = [
     (
         "Reparații Electrocasnice",
-        r"frigider|spălat|spalat|cuptor|electrocasnic|uscător|uscator|centrifug",
+        r"masina de spalat|masina spalat|spalat rufe|spalat vase|frigider|congelator|combina frigorifica|cuptor|aragaz|plita|hota|electrocasnic|uscator|centrifug|microunde|expresor|espressor",
         "100 – 300 RON",
-        "Problema descrisă necesită diagnoza unui tehnician pentru electrocasnice.",
+        "Problema descrisă necesită diagnoza unui tehnician autorizat pentru electrocasnice la domiciliu în Sibiu.",
     ),
     (
         "Acoperișuri & Exterioare",
-        r"țigl|tigl|acoperi|jgheab|pluvial|hidroizola|infiltr",
+        r"tigl|acoperi|jgheab|burlan|pluvial|hidroizola|infiltr|mansard|streasin|coama|sindril|ploua prin|ploua in pod|terasa exterioara",
         "200 – 1500 RON",
-        "Pentru reparații la acoperiș, țiglă sau jgheaburi pluviale, este recomandată o echipă specializată.",
+        "Pentru reparații la acoperiș, țiglă, hidroizolații sau jgheaburi pluviale, este recomandată o echipă specializată din Sibiu.",
     ),
     (
         "Instalații Sanitare",
-        r"țeav|teav|robinet|apă|apa |scurg|chiuvet|baterie lavoar|lavoar|wc|duș|dus|inunda",
+        r"teav|tev|robinet|baterie de la lavoar|baterie lavoar|baterie chiuveta|baterie dus|lavoar|scurg|chiuvet|wc|toalet|rezervor|bazin|dus|cada|sifon|apometru|inunda|instalator|canalizar|desfund|picura|curge apa|pierdere de apa|conducta",
         "120 – 280 RON",
-        "Descrierea indică o problemă la instalația de apă. Este recomandat un instalator autorizat din Sibiu.",
+        "Descrierea indică o problemă la instalația sanitară sau de apă. Este recomandat un instalator autorizat din Sibiu.",
     ),
     (
         "Instalații Electrice",
-        r"curent|priz|siguran|electric|bec|cablu|tablou|iluminat|scântei|scantei",
+        r"curent|priz|intrerupator|comutator|sigurant|electric|bec|lustra|aplica|cablu|tablou|panou electric|iluminat|scantei|scurtcircuit|contor|impamantar|faza|nul|neon|led|senzor|nu merge lumina|s-a luat lumina",
         "150 – 350 RON",
-        "Simptomele descrise necesită verificarea circuitului de către un electrician autorizat ANRE.",
+        "Simptomele descrise necesită verificarea circuitului de către un electrician autorizat ANRE din Sibiu.",
     ),
     (
         "Climatizare & Termice",
-        r"central|calorifer|aer condi|termic|clim|vaillant|viessmann|freon",
+        r"centrala|central|calorifer|radiator|aer conditionat|conditionat|termic|climatizar|clima|vaillant|viessmann|ariston|immergas|motan|baxi|ferroli|freon|termostat|incalzir|caldura|eroare f|presiune centrala|boiler|ventiloconvector|pompa de caldura",
         "180 – 400 RON",
-        "Pare o problemă de încălzire sau climatizare; un tehnician din Sibiu poate face revizia la fața locului.",
+        "Simptomele indică o problemă la centrala termică, încălzire sau aer condiționat; un tehnician autorizat ISCIR din Sibiu poate interveni la fața locului.",
     ),
     (
         "Mecanică Auto",
-        r"mașin|masin|motor|frân|fran|baterie auto|diagnoz|check engine",
+        r"baterie auto|check engine|mecanic auto|service auto|placute|disc frana|fran|motor|diagnoz|ambreiaj|cutie de viteze|demaror|alternator|bujii|inject|suspensi|directi|distributi|ulei motor|nu porneste masina|porneste greu|masin",
         "150 – 450 RON",
-        "Cererea ține de diagnoză sau reparații auto mobile în Sibiu.",
+        "Cererea ține de diagnoză computerizată sau reparații auto mobile în Sibiu.",
     ),
     (
         "Vulcanizare Mobilă",
-        r"roat|pană|pana |anvelop|cauciuc|echilibrare",
+        r"pana la roat|facut pana|am pana|pana auto|vulcanizar|echilibrar|anvelop|cauciuc|roat|jant|pneu|schimb sezonier|schimb roti|presiune roat",
         "100 – 250 RON",
-        "O echipă de vulcanizare mobilă din Sibiu poate interveni direct la locația ta.",
+        "O echipă de vulcanizare mobilă din Sibiu și zona A1 poate interveni direct la locația ta.",
     ),
     (
         "Lăcătuș",
-        r"yal|ușă|usa |ușa|cheie|încuiat|incuiat|cilindru",
+        r"ramas incuiat|ramas pe dinafara|debloca|incuiat|incuietoar|cilindru|multipunct|yal|broasc|butuc|lacat|cheie|chei|clanta|usa blocat|blocat usa|usa de intrare|usa ",
         "140 – 280 RON",
-        "Un lăcătuș autorizat din Sibiu poate rezolva rapid problema de închidere.",
+        "Un lăcătuș autorizat din Sibiu poate interveni rapid pentru deblocare fără distrugere sau înlocuire yală/cilindru.",
     ),
     (
         "Zugrăveli & Finisaje",
-        r"zugrav|zugrăv|vopsea|lavabil|glet|perete",
+        r"vopsea lavabil|lavabil|zugrav|vopsit|vopsea|glet|varuit|rigips|gips carton|perete|pereti|tavan|fisur|crapatur|amors|tapet|mucegai|finisaj",
         "30 – 60 RON/mp",
-        "Pentru pereți și finisaje, un zugrav profesionist îți poate oferi deviz pe metru pătrat.",
+        "Pentru pereți, gletuire și zugrăveli cu lavabilă, un zugrav profesionist din Sibiu îți poate oferi deviz pe metru pătrat.",
     ),
     (
         "Zidărie & Faianțare",
-        r"gresie|faianț|faiant|chituir|zidăr|zidar|tencui|plăci|placi",
+        r"gresie si faianta|gresi|faiant|chituir|rostur|zidar|tencui|placi|placar|sapa|parchet|plint|caramid|bca|beton|marmur|granit|travertin",
         "50 – 120 RON/mp",
-        "Pentru montaj gresie, faianță sau zidărie, îți recomandăm un faianțar verificat din Sibiu.",
+        "Pentru montaj gresie, faianță, parchet sau reparații zidărie, îți recomandăm un meșter faianțar verificat din Sibiu.",
     ),
     (
         "Montaj Mobilă",
-        r"asambl|mobil|dulap|pax|bucătări|corpuri suspendate",
+        r"corpuri suspendate|corp suspendat|mobila de bucatarie|mobila bucatarie|asambl|mobil|dulap|pax|ikea|dedeman|jysk|birou|comod|sifonier|dressing|raft|etajer|blat|balama|sertar|galeri",
         "100 – 400 RON",
         "Pentru asamblare și montaj mobilier, un montator cu experiență din Sibiu poate prelua lucrarea.",
     ),
     (
         "Curățenie",
-        r"curăț|curat|menaj|mizerie|după constructor",
+        r"dupa constructor|curatenie generala|curateni|curatare|menaj|mizeri|spalat geam|aspirat|igienizare apartament|canape|salte|covoare|mochet",
         "150 – 450 RON",
-        "O echipă de curățenie poate prelua lucrarea cu materiale proprii.",
+        "O echipă profesională de curățenie din Sibiu poate prelua lucrarea cu echipamente și soluții proprii.",
     ),
 ]
 
@@ -1961,8 +1972,8 @@ def ai_recommend(conn, data):
     if not isinstance(data, dict):
         raise ApiError(400, "bad_request", "Corpul cererii trebuie să fie un obiect JSON.")
     raw_problem = data.get("problem")
-    if not isinstance(raw_problem, str) or len(raw_problem.strip()) < 10:
-        raise bad("Descrierea trebuie să aibă minim 10 caractere.", "problem")
+    if not isinstance(raw_problem, str) or len(raw_problem.strip()) < 6:
+        raise bad("Descrierea trebuie să aibă minim 6 caractere.", "problem")
     if len(raw_problem) > 12000:
         raise bad("Descrierea depășește limita maximă admisă (12.000 caractere).", "problem")
 
@@ -2004,27 +2015,35 @@ def ai_recommend(conn, data):
         try:
             if config.GEMINI_API_KEY.strip():
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={config.GEMINI_API_KEY.strip()}"
-                prompt_content = f"Triage repair problem in Sibiu into one of the 12 categories: Instalații Sanitare, Instalații Electrice, Climatizare & Termice, Mecanică Auto, Vopsitorie & Tinichigerie, Vulcanizare & Detailing, Amenajări & Zugrăveli, Tâmplărie & Uși, Acoperișuri & Exterioare, Zidărie & Faianțare, Lăcătuș & Deblocări, Reparații Electrocasnice. Description: {clean_problem}"
+                prompt_content = (
+                    "Triage repair problem in Sibiu into exactly one of the 12 categories: "
+                    "Instalații Sanitare, Instalații Electrice, Climatizare & Termice, Mecanică Auto, "
+                    "Vulcanizare Mobilă, Reparații Electrocasnice, Lăcătuș, Zugrăveli & Finisaje, "
+                    "Zidărie & Faianțare, Montaj Mobilă, Acoperișuri & Exterioare, Curățenie. "
+                    f"Description: {clean_problem}"
+                )
                 payload = json.dumps({"contents": [{"parts": [{"text": prompt_content}]}]}).encode("utf-8")
                 req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
                 with urllib.request.urlopen(req, timeout=config.AI_MODEL_TIMEOUT_SEC) as resp:
                     resp_data = json.loads(resp.read().decode("utf-8"))
                     cand = resp_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                    cand_norm = normalize_ro(cand)
                     for name, _, _, _ in AI_RULES:
-                        if name.lower() in cand.lower():
+                        if normalize_ro(name) in cand_norm:
                             llm_cat = name
                             break
         except Exception:
             fallback_used = True
             provider = "deterministic_fallback"
 
-    text = clean_problem.lower()
+    norm_text = normalize_ro(clean_problem)
     cat, price, reason = (
         "Instalații Sanitare",
         "100 – 400 RON",
         "Am selectat un meșter verificat din Sibiu care poate trimite o estimare rapidă.",
     )
     matched = False
+    matched_terms: list[str] = []
     if llm_cat:
         cat, matched = llm_cat, True
         for name, _, p, why in AI_RULES:
@@ -2032,12 +2051,31 @@ def ai_recommend(conn, data):
                 price, reason = p, why
                 break
     else:
+        best_score = 0
         for name, rx, p, why in AI_RULES:
-            if re.search(rx, text):
-                cat, price, reason, matched = name, p, why, True
-                break
+            hits = re.findall(rx, norm_text)
+            if hits:
+                # Score combines number of matched domain terms + specificity (length of multi-word matches)
+                unique_hits = list(dict.fromkeys(h.strip() for h in hits if h.strip()))
+                score = len(unique_hits) * 10 + sum(len(h) for h in unique_hits)
+                if score > best_score:
+                    best_score = score
+                    cat, price, reason, matched = name, p, why, True
+                    matched_terms = unique_hits
+
     pros = list_professionals(conn, cat)["professionals"]
-    urgent = bool(re.search(r"inund|curge tare|urgen|scântei|scantei|fum", text))
+    urgent = bool(re.search(r"inund|curge tare|urgen|scantei|fum|ramas pe dinafara", norm_text))
+    recommended_service = None
+    if pros and pros[0].get("services"):
+        srv_list = pros[0]["services"]
+        recommended_service = srv_list[0]["name"]
+        for s in srv_list:
+            s_words = [w for w in normalize_ro(s["name"]).split() if len(w) >= 4]
+            if any(w in norm_text for w in s_words):
+                recommended_service = s["name"]
+                break
+        if matched and matched_terms:
+            reason = f"{reason} Serviciu identificat: „{recommended_service}” (elemente detectate: {', '.join(matched_terms[:3])})."
 
     analytics.track(
         conn,
@@ -2062,6 +2100,7 @@ def ai_recommend(conn, data):
         "matched": matched,
         "urgency": "Intervenție urgentă Sibiu" if urgent else (pros[0]["availability"] if pros else "Disponibil curând"),
         "professional": pros[0] if pros else None,
+        "recommended_service": recommended_service,
         "provider": provider,
         "fallback_used": fallback_used,
         "context_truncated": truncated,

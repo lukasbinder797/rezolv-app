@@ -32,6 +32,19 @@ GOLDEN_TRIAGE_CASES = [
     ("Am nevoie de montaj gresie și faianță în baie și chituire rosturi.", "Zidărie & Faianțare", False),
     ("Trebuie să asamblez un dulap PAX și să montez mobila de bucătărie.", "Montaj Mobilă", False),
     ("S-au spart câteva țigle pe acoperiș și plouă prin jgheabul pluvial.", "Acoperișuri & Exterioare", False),
+    # Mobile inputs without Romanian diacritics across all 12 categories:
+    ("curge apa sub chiuveta la bucatarie", "Instalații Sanitare", False),
+    ("s-a ars intrerupatorul si nu am lumina in dormitor", "Instalații Electrice", False),
+    ("nu merge centrala si nu am caldura in calorifere", "Climatizare & Termice", False),
+    ("nu mai porneste masina si bate ceva la frana", "Mecanică Auto", False),
+    ("am facut pana la roata pe autostrada", "Vulcanizare Mobilă", False),
+    ("masina de spalat rufe nu mai stoarce si face zgomot", "Reparații Electrocasnice", False),
+    ("s-a blocat usa la intrare si s-a rupt cheia in yala", "Lăcătuș", False),
+    ("vreau sa zugravesc peretii cu lavabila si sa dau cu glet", "Zugrăveli & Finisaje", False),
+    ("caut mester pentru gresie si faianta in baie", "Zidărie & Faianțare", False),
+    ("asamblare dulap ikea si montaj comoda dormitor", "Montaj Mobilă", False),
+    ("s-au desprins doua tigle pe acoperis si curge burlanul", "Acoperișuri & Exterioare", False),
+    ("curatenie generala in apartament si spalat geamuri", "Curățenie", False),
 ]
 
 PROMPT_INJECTION_CASES = [
