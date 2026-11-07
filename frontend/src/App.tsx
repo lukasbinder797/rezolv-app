@@ -24,6 +24,11 @@ import {
 import { SuperAdminDashboard } from "./components/SuperAdminDashboard"
 import { FeedbackWidget } from "./components/FeedbackWidget"
 import { SvgIcon } from "./components/SvgIcon"
+import { LocationMapPicker } from "./components/LocationMapPicker"
+import {
+  addBookingToNativeCalendar,
+  buildGoogleCalendarUrl,
+} from "./utils/calendarAndGeo"
 
 type Role = "client" | "pro"
 type ClientTab = "home" | "search" | "bookings" | "profile"
@@ -659,6 +664,89 @@ function BookingCard({
         </div>
       )}
 
+      {/* 1-Click Native Phone Calendar (.ics / Apple Calendar / Google Calendar) & GPS Map */}
+      {booking.status !== "cancelled" && booking.status !== "refused" && (
+        <div
+          style={{
+            margin: "10px 0 8px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => addBookingToNativeCalendar(booking, "client")}
+            style={{
+              height: 36,
+              padding: "0 12px",
+              borderRadius: "var(--radius-xs)",
+              background: "var(--navy)",
+              color: "var(--white)",
+              border: "1px solid var(--navy)",
+              fontSize: 12,
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <SvgIcon name="calendar" size={14} />
+            <span>Adaugă în Calendarul Telefonului</span>
+          </button>
+
+          <a
+            href={buildGoogleCalendarUrl(booking, "client")}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              height: 36,
+              padding: "0 10px",
+              borderRadius: "var(--radius-xs)",
+              background: "var(--surface-raised)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border-strong)",
+              fontSize: 11,
+              fontWeight: 600,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <SvgIcon name="calendar" size={13} />
+            <span>Google Cal</span>
+          </a>
+
+          <a
+            href={`https://maps.apple.com/?q=${encodeURIComponent(
+              booking.client?.address || `${booking.neighborhood || "Hipodrom"}, Sibiu`,
+            )}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              height: 36,
+              padding: "0 10px",
+              borderRadius: "var(--radius-xs)",
+              background: "var(--surface-raised)",
+              color: "var(--navy)",
+              border: "1px solid var(--border-strong)",
+              fontSize: 11,
+              fontWeight: 600,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <SvgIcon name="pin" size={13} />
+            <span>Hartă GPS</span>
+          </a>
+        </div>
+      )}
+
       <div className="payment-note">
         <span className="inline-meta">
           <SvgIcon name="check" size={14} /> Plata direct la meșter la finalizare (0% comision)
@@ -678,6 +766,7 @@ function ClientHome({
   onOpenBookings,
   onAcceptEstimate,
   onDeclineEstimate,
+  onUserUpdated,
 }: {
   user: ApiUser
   bookings: ApiBooking[]
@@ -687,8 +776,12 @@ function ClientHome({
   onOpenBookings: () => void
   onAcceptEstimate: (booking: ApiBooking) => void
   onDeclineEstimate: (booking: ApiBooking) => void
+  onUserUpdated: (user: ApiUser) => void
 }) {
   const [query, setQuery] = useState("")
+  const [showHomeMap, setShowHomeMap] = useState(false)
+  const [liveAddress, setLiveAddress] = useState(user.address || "")
+  const [liveNeighborhood, setLiveNeighborhood] = useState(user.neighborhood || "Hipodrom")
   const filtered = categories.filter(([name]) =>
     name.toLowerCase().includes(query.toLowerCase()),
   )
@@ -737,26 +830,32 @@ function ClientHome({
               >
                 REZOLV Sibiu
               </span>
-              <span
+              <button
+                type="button"
+                onClick={() => setShowHomeMap((v) => !v)}
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
-                  padding: "1px 6px",
-                  background: "var(--surface-raised)",
-                  color: "var(--text-secondary)",
-                  border: "1px solid var(--border)",
+                  padding: "2px 8px",
+                  background: showHomeMap ? "var(--navy)" : "var(--surface-raised)",
+                  color: showHomeMap ? "var(--white)" : "var(--navy)",
+                  border: "1px solid var(--border-strong)",
                   borderRadius: 6,
-                  fontWeight: 500,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
-                {user.neighborhood || "Hipodrom"}
-              </span>
+                <SvgIcon name="pin" size={12} />
+                <span>{liveNeighborhood} · Hartă GPS</span>
+              </button>
             </div>
             <div className="screen-title" style={{ margin: "2px 0 0", fontSize: 18, lineHeight: "24px" }}>
               Servicii și intervenții locale
             </div>
             <small style={{ color: "var(--text-secondary)", fontSize: 12 }}>
-              Cont client · {user.name}
+              {liveAddress ? `Locație GPS: ${liveAddress}` : `Cont client · ${user.name}`}
             </small>
           </div>
         </div>
@@ -768,6 +867,34 @@ function ClientHome({
           {user.initials || "LB"}
         </Pressable>
       </header>
+
+      {showHomeMap && (
+        <div style={{ marginBottom: 14 }}>
+          <LocationMapPicker
+            neighborhood={liveNeighborhood}
+            address={liveAddress}
+            onSelectLocation={async (loc) => {
+              setLiveNeighborhood(loc.neighborhood)
+              setLiveAddress(loc.address)
+              try {
+                const res = await api.updateMe({
+                  name: user.name,
+                  phone: user.phone || "+40 721 555 010",
+                  city: "Sibiu",
+                  address: loc.address,
+                })
+                onUserUpdated({
+                  ...res.user,
+                  neighborhood: loc.neighborhood,
+                  address: loc.address,
+                })
+              } catch {
+                // ignore offline update error
+              }
+            }}
+          />
+        </div>
+      )}
 
       <div className="search-shell">
         <Icon file="91214.svg" />
@@ -1738,7 +1865,16 @@ function ServiceBookingFlow({
                 <span>{selectedService.price}</span>
               </div>
             </div>
-            <div className="booking-field-label">Cartierul din Sibiu</div>
+            <LocationMapPicker
+              neighborhood={neighborhood}
+              address={clientAddress}
+              compact
+              onSelectLocation={(loc) => {
+                setNeighborhood(loc.neighborhood)
+                setClientAddress(loc.address)
+              }}
+            />
+            <div className="booking-field-label">Cartierul din Sibiu (selectat automat din hartă)</div>
             <div className="chip-row">
               {sibiuZones.map((z) => (
                 <Pressable
@@ -1751,12 +1887,12 @@ function ServiceBookingFlow({
               ))}
             </div>
             <div className="booking-field-label" style={{ marginTop: 8 }}>
-              Adresa exactă în Sibiu (stradă, nr., bloc, ap.)
+              Adresa exactă în Sibiu (completată automat prin GPS / Hartă)
             </div>
             <Field
               value={clientAddress}
               onChange={setClientAddress}
-              placeholder="Ex: Str. Nicolae Bălcescu nr. 12, Sc. B, Ap. 15"
+              placeholder="Apasă „Localizează-mă pe hartă” mai sus sau atinge harta..."
             />
             <div className="booking-field-label" style={{ marginTop: 8 }}>
               Telefon mobil (pentru remindere SMS și sosirea meșterului)
@@ -1910,6 +2046,43 @@ function ServiceBookingFlow({
               <b>În așteptarea confirmării</b>
             </div>
             <Pressable
+              className="outline-button booking-primary"
+              onClick={() =>
+                addBookingToNativeCalendar(
+                  {
+                    id: `req-${Date.now()}`,
+                    status: "pending",
+                    category,
+                    service_name: selectedService.name,
+                    price_label: selectedService.price,
+                    description: problem,
+                    neighborhood,
+                    scheduled_for: preferredWindow,
+                    time_label: preferredWindow,
+                    ago: "acum",
+                    can_review: false,
+                    client: {
+                      id: user?.id || "u_client",
+                      name: user?.name || "Client Sibiu",
+                      neighborhood,
+                      address: clientAddress || `${neighborhood}, Sibiu`,
+                      phone: clientPhone,
+                    },
+                    professional: {
+                      id: selectedProfessional.id,
+                      name: selectedProfessional.name,
+                      company_name: selectedProfessional.company_name,
+                      initials: selectedProfessional.initials,
+                    },
+                  },
+                  "client",
+                )
+              }
+            >
+              <SvgIcon name="calendar" size={15} />
+              <span>Adaugă în Calendarul Telefonului (.ics)</span>
+            </Pressable>
+            <Pressable
               className="primary-button booking-primary"
               onClick={onClose}
             >
@@ -2058,7 +2231,9 @@ function ClientApp({
       await refresh()
       setDialog({
         title: "Estimare acceptată și slot blocat",
-        message: `Ai confirmat estimarea de ${res.booking.quote_price} RON (${res.booking.quote_duration}) pe ${res.booking.scheduled_for}. Slotul a fost blocat în calendarul meșterului și vei primi automat remindere SMS cu 24h și 2h înainte de lucrare.`,
+        message: `Ai confirmat estimarea de ${res.booking.quote_price} RON (${res.booking.quote_duration}) pe ${res.booking.scheduled_for}. Apasă mai jos pentru a adăuga automat programarea (cu alarme la 24h și 2h) în Calendarul nativ al telefonului.`,
+        confirmLabel: "Adaugă în Calendarul Telefonului",
+        onConfirm: () => addBookingToNativeCalendar(res.booking, "client"),
       })
     } catch (e) {
       setDialog({
@@ -2098,6 +2273,7 @@ function ClientApp({
           onOpenBookings={() => setTab("bookings")}
           onAcceptEstimate={acceptEstimate}
           onDeclineEstimate={declineEstimate}
+          onUserUpdated={onUserUpdated}
         />
       )}
       {tab === "search" && (
@@ -2630,6 +2806,11 @@ function ProDashboard({
                           }
                         >
                           Navigație Waze
+                        </Pressable>
+                        <Pressable
+                          onClick={() => addBookingToNativeCalendar(b, "pro")}
+                        >
+                          În Calendar
                         </Pressable>
                       </span>
                       <Pressable className="complete-job-button" onClick={() => onComplete(b)}>

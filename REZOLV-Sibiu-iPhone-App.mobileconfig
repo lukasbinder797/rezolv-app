@@ -1634,29 +1634,29 @@
 			<key>Label</key>
 			<string>REZOLV Sibiu</string>
 			<key>PayloadDescription</key>
-			<string>Instaleaza aplicatia REZOLV Sibiu Full-Screen pe iPhone</string>
+			<string>Instaleaza aplicatia REZOLV Sibiu Full-Screen 24/7 pe iPhone</string>
 			<key>PayloadDisplayName</key>
 			<string>REZOLV Sibiu — iOS App</string>
 			<key>PayloadIdentifier</key>
-			<string>ro.rezolv.sibiu.webclip</string>
+			<string>ro.rezolv.sibiu.webclip.permanent</string>
 			<key>PayloadType</key>
 			<string>com.apple.webClip.managed</string>
 			<key>PayloadUUID</key>
-			<string>A1B2C3D4-E5F6-4789-9012-3456789ABCDE</string>
+			<string>A1B2C3D4-E5F6-4789-9012-999999999999</string>
 			<key>PayloadVersion</key>
 			<integer>1</integer>
 			<key>Precomposed</key>
 			<true/>
 			<key>URL</key>
-			<string>http://192.168.0.80:8787/</string>
+			<string>https://lukasbinder797.github.io/rezolv-app/</string>
 		</dict>
 	</array>
 	<key>PayloadDescription</key>
-	<string>Instaleaza aplicatia REZOLV Sibiu (Full-Screen, fara browser) pe ecranul principal al iPhone-ului.</string>
+	<string>Instaleaza aplicatia REZOLV Sibiu Full-Screen (fara browser, 24/7 in cloud, fara laptop).</string>
 	<key>PayloadDisplayName</key>
-	<string>REZOLV Sibiu (iPhone App)</string>
+	<string>REZOLV Sibiu (iPhone App 24/7)</string>
 	<key>PayloadIdentifier</key>
-	<string>ro.rezolv.sibiu.profile</string>
+	<string>ro.rezolv.sibiu.profile.permanent</string>
 	<key>PayloadOrganization</key>
 	<string>REZOLV Sibiu SRL</string>
 	<key>PayloadRemovalDisallowed</key>
@@ -1664,7 +1664,7 @@
 	<key>PayloadType</key>
 	<string>Configuration</string>
 	<key>PayloadUUID</key>
-	<string>F1E2D3C4-B5A6-4789-9012-3456789ABCDE</string>
+	<string>F1E2D3C4-B5A6-4789-9012-999999999999</string>
 	<key>PayloadVersion</key>
 	<integer>1</integer>
 </dict>

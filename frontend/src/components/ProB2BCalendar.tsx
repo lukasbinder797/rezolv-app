@@ -6,6 +6,11 @@ import {
   type ApiQuickSlot,
 } from "../api"
 import { SvgIcon } from "./SvgIcon"
+import { LocationMapPicker } from "./LocationMapPicker"
+import {
+  addBookingToNativeCalendar,
+  syncAllBookingsToNativeCalendar,
+} from "../utils/calendarAndGeo"
 
 export function ProB2BCalendar({
   days,
@@ -180,8 +185,8 @@ export function ProB2BCalendar({
         })}
       </div>
 
-      {/* CRM Mode: Add Phone Call Client + Auto SMS 24h/2h */}
-      <div style={{ margin: "12px 0" }}>
+      {/* CRM Mode: Add Phone Call Client + Auto SMS 24h/2h + 1-Click Native Phone Calendar Sync */}
+      <div style={{ margin: "12px 0", display: "grid", gap: 8 }}>
         <div
           role="button"
           tabIndex={0}
@@ -192,6 +197,24 @@ export function ProB2BCalendar({
           <SvgIcon name="phone" size={16} />
           <span>Adaugă programare telefonică (CRM · SMS)</span>
         </div>
+        <button
+          type="button"
+          className="outline-button"
+          style={{ minHeight: 42, fontSize: 12, fontWeight: 600 }}
+          onClick={() => {
+            const allBooked = days
+              .flatMap((d) => d.slots.map((s) => s.booking).filter((b): b is ApiBooking => Boolean(b)))
+              .filter((b, i, arr) => arr.findIndex((x) => x.id === b.id) === i)
+            if (!allBooked.length) {
+              onError("Agendă goală", "Nu există încă lucrări programate pentru export în calendar.")
+              return
+            }
+            syncAllBookingsToNativeCalendar(allBooked, "pro")
+          }}
+        >
+          <SvgIcon name="calendar" size={15} />
+          <span>Sincronizează agenda în Calendarul Telefonului (.ics)</span>
+        </button>
       </div>
 
       {/* Fast Field CRM Form for Phone Bookings */}
@@ -264,10 +287,19 @@ export function ProB2BCalendar({
             </div>
 
             <div>
-              <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
-                4. Cartier și adresă în Sibiu
+              <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>
+                4. Cartier și adresă în Sibiu (GPS sau Hartă)
               </small>
-              <div className="chip-row" style={{ marginTop: 6 }}>
+              <LocationMapPicker
+                neighborhood={manualNeighborhood}
+                address={manualAddress}
+                compact
+                onSelectLocation={(loc) => {
+                  setManualNeighborhood(loc.neighborhood)
+                  setManualAddress(loc.address)
+                }}
+              />
+              <div className="chip-row" style={{ marginTop: 8 }}>
                 {sibiuZones.map((z) => (
                   <div
                     key={z}
@@ -283,7 +315,7 @@ export function ProB2BCalendar({
               <div className="input-shell" style={{ marginTop: 8 }}>
                 <input
                   className="field"
-                  placeholder={`Adresă opțională (ex: Str. Rahovei nr. 14, ${manualNeighborhood})`}
+                  placeholder={`Adresă completată automat din hartă (ex: Str. Rahovei nr. 14, ${manualNeighborhood})`}
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
                 />
@@ -505,6 +537,22 @@ export function ProB2BCalendar({
                       <SvgIcon name="pin" size={12} />
                       <span>Hărți</span>
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => addBookingToNativeCalendar(bk, "pro")}
+                      className="chip-button"
+                      style={{
+                        minHeight: 28,
+                        padding: "2px 8px",
+                        fontSize: 11,
+                        background: "var(--navy)",
+                        color: "var(--white)",
+                        borderColor: "var(--navy)",
+                      }}
+                    >
+                      <SvgIcon name="calendar" size={12} />
+                      <span>În Calendar</span>
+                    </button>
                   </div>
                 )}
 
