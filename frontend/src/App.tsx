@@ -22,7 +22,6 @@ import {
   PasswordResetModal,
 } from "./components/ProductionComplianceSuite"
 import { SuperAdminDashboard } from "./components/SuperAdminDashboard"
-import { FeedbackWidget } from "./components/FeedbackWidget"
 import { SvgIcon } from "./components/SvgIcon"
 import {
   addBookingToNativeCalendar,
@@ -3968,7 +3967,6 @@ export default function App() {
           <ProApp user={user} onLogout={logout} onUserUpdated={setUser} />
         )}
       </div>
-      <FeedbackWidget user={user} />
       <CookieConsentBanner onOpenLegal={setLegalDoc} />
       {legalDoc && <LegalModal kind={legalDoc} onClose={() => setLegalDoc(null)} />}
     </AppErrorBoundary>
