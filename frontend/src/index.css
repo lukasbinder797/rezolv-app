@@ -468,7 +468,7 @@ textarea:focus-visible,
 }
 
 /* ============================================================================
-   MAIN APP SHELL & MOBILE PHONE CONTAINER
+   MAIN APP SHELL & RESPONSIVE CONTAINER
    ============================================================================ */
 .app-shell {
   min-height: 100dvh;
@@ -483,7 +483,7 @@ textarea:focus-visible,
 
 .screen-content {
   min-height: calc(100dvh - 72px);
-  max-width: 100%;
+  max-width: 680px;
   width: 100%;
   margin: 0 auto;
   padding: calc(20px + env(safe-area-inset-top)) 16px 40px;
@@ -491,66 +491,14 @@ textarea:focus-visible,
   overflow-x: hidden;
 }
 
-/* Desktop Preview Frame: Presents the app as a centered iPhone 15 frame on Render */
-@media (min-width: 640px) {
-  body {
-    background: #0b1329;
-    background-image:
-      radial-gradient(at 0% 0%, rgba(16, 63, 111, 0.45) 0px, transparent 60%),
-      radial-gradient(at 100% 100%, rgba(30, 41, 59, 0.85) 0px, transparent 60%);
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 24px 0 40px;
-    min-height: 100vh;
-  }
-
-  #root {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-  }
-
-  .app-shell {
-    max-width: 430px;
-    width: 100%;
-    margin: 0 auto;
-    min-height: calc(100dvh - 48px);
-    border-radius: 46px;
-    box-shadow:
-      0 0 0 10px #1e293b,
-      0 0 0 12px #334155,
-      0 30px 70px -15px rgba(0, 0, 0, 0.75);
-    overflow-x: hidden;
-    position: relative;
-    background: var(--bg);
-  }
-
-  .app-shell .bottom-nav {
-    max-width: 430px;
+@media (min-width: 720px) {
+  .bottom-nav {
+    max-width: 680px;
     left: 50% !important;
     right: auto !important;
     transform: translateX(-50%);
-    border-bottom-left-radius: 46px;
-    border-bottom-right-radius: 46px;
-  }
-
-  .app-shell .feedback-floating-btn {
-    position: absolute;
-    bottom: 84px;
-    right: 16px;
-  }
-
-  .app-shell .screen-content {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .app-shell .pro-dashboard {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 16px !important;
-    width: 100% !important;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
   }
 }
 
