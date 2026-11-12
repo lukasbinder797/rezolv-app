@@ -2511,21 +2511,22 @@ function ProHeader({
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
-                  padding: "1px 6px",
-                  background: "var(--navy)",
-                  color: "var(--white)",
+                  padding: "1px 7px",
+                  background: "var(--soft-blue)",
+                  color: "var(--navy)",
+                  border: "1px solid rgba(16, 63, 111, 0.18)",
                   borderRadius: 6,
-                  fontWeight: 500,
+                  fontWeight: 600,
                 }}
               >
-                B2B 0%
+                PRO
               </span>
             ) : (
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: 11,
-                  padding: "1px 6px",
+                  padding: "1px 7px",
                   background: "var(--surface-raised)",
                   color: "var(--text-secondary)",
                   borderRadius: 6,
@@ -2872,20 +2873,21 @@ function ProDashboard({
                 </div>
               )}
               <div className="request-actions">
-                <Pressable
-                  className="primary-button compact"
+                <button
+                  type="button"
+                  className="pro-btn-quote"
                   onClick={() => onQuote(b)}
                 >
-                  {b.status === "estimated"
-                    ? "Modifică devizul"
-                    : "Trimite deviz"}
-                </Pressable>
-                <Pressable
-                  className="outline-button compact"
+                  <SvgIcon name="document" size={13} />
+                  <span>{b.status === "estimated" ? "Modifică devizul" : "Trimite deviz"}</span>
+                </button>
+                <button
+                  type="button"
+                  className="pro-btn-refuse"
                   onClick={() => onRefuse(b)}
                 >
                   Refuză
-                </Pressable>
+                </button>
               </div>
             </div>
           )
@@ -3592,7 +3594,7 @@ function ProApp({
         items={[
           ["dashboard", "Panou & Calendar", navIcons.dashboard],
           ["services", "Servicii", navIcons.services],
-          ["subscription", "Abonament 39€", navIcons.subscription],
+          ["subscription", "Abonament", navIcons.subscription],
         ]}
       />
       {addingService && (

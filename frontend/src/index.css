@@ -1001,6 +1001,60 @@ textarea:focus-visible,
   text-decoration: none;
 }
 
+.route-chip:hover {
+  background: var(--soft-blue);
+  border-color: rgba(16, 63, 111, 0.25);
+}
+
+.pro-btn-quote {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  background: var(--navy);
+  color: var(--white);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(16, 63, 111, 0.2);
+  transition: background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.pro-btn-quote:hover {
+  background: var(--navy-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(16, 63, 111, 0.28);
+}
+
+.pro-btn-refuse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.pro-btn-refuse:hover {
+  background: var(--soft-red);
+  color: var(--red);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
 /* Pro Schedule Clean Card */
 .schedule-card-clean {
   background: var(--surface);
@@ -3834,11 +3888,11 @@ textarea:focus-visible,
 
 /* Free / Past Slot Row */
 .cal-slot-free-row {
-  min-height: 44px;
-  border-radius: var(--radius-sm);
-  border: 1px dashed var(--border);
+  min-height: 38px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
   background: var(--surface-subtle);
-  padding: 8px 12px;
+  padding: 6px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3846,19 +3900,27 @@ textarea:focus-visible,
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
+  transition: all 140ms ease;
+}
+
+.cal-slot-free-row.pressable:hover {
+  background: var(--surface-raised);
+  border-color: rgba(16, 63, 111, 0.2);
 }
 
 .cal-slot-free-row.is-past {
-  opacity: 0.65;
+  opacity: 0.45;
+  background: transparent;
+  border-color: rgba(15, 23, 42, 0.05);
 }
 
 .cal-slot-free-hour {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   flex-shrink: 0;
-  width: 46px;
+  width: 44px;
 }
 
 .cal-slot-free-text {
@@ -3866,9 +3928,6 @@ textarea:focus-visible,
   color: var(--text-muted);
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .cal-slot-free-badge {
@@ -3876,6 +3935,9 @@ textarea:focus-visible,
   font-size: 11px;
   font-weight: 600;
   color: var(--navy);
+  background: var(--surface-raised);
+  padding: 2px 8px;
+  border-radius: 4px;
   flex-shrink: 0;
   white-space: nowrap !important;
 }
@@ -4016,22 +4078,24 @@ textarea:focus-visible,
   align-items: center;
   gap: 5px;
   min-height: 28px;
-  padding: 2px 9px;
+  padding: 2px 10px;
   border-radius: var(--radius-xs);
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap !important;
   text-decoration: none;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
   color: var(--text-primary);
   box-sizing: border-box;
+  cursor: pointer;
+  transition: all 140ms ease;
 }
 
-.cal-chip-btn.cal-chip-cal {
-  background: var(--navy);
-  color: var(--white);
-  border-color: var(--navy);
+.cal-chip-btn:hover {
+  background: var(--soft-blue);
+  color: var(--navy);
+  border-color: rgba(16, 63, 111, 0.2);
 }
 
 .cal-card-footer {
@@ -4041,7 +4105,7 @@ textarea:focus-visible,
   gap: 8px;
   padding-top: 10px;
   margin-top: 2px;
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border);
   width: 100%;
   box-sizing: border-box;
   flex-wrap: wrap;
@@ -4067,7 +4131,13 @@ textarea:focus-visible,
   border: 1px solid var(--border);
   color: var(--navy);
   white-space: nowrap !important;
+  cursor: pointer;
   box-sizing: border-box;
+  transition: all 140ms ease;
+}
+
+.cal-footer-btn-resched:hover {
+  background: var(--soft-blue);
 }
 
 .cal-footer-btn-sms {
@@ -4083,7 +4153,14 @@ textarea:focus-visible,
   border: 1px solid var(--border);
   color: var(--text-secondary);
   white-space: nowrap !important;
+  cursor: pointer;
   box-sizing: border-box;
+  transition: all 140ms ease;
+}
+
+.cal-footer-btn-sms:hover {
+  background: var(--soft-blue);
+  color: var(--navy);
 }
 
 .cal-footer-right-group {
@@ -4098,7 +4175,7 @@ textarea:focus-visible,
   align-items: center;
   gap: 4px;
   min-height: 28px;
-  padding: 2px 10px;
+  padding: 2px 11px;
   border-radius: var(--radius-xs);
   font-size: 11px;
   font-weight: 600;
@@ -4106,7 +4183,14 @@ textarea:focus-visible,
   color: var(--green);
   border: 1px solid rgba(21, 128, 61, 0.25);
   white-space: nowrap !important;
+  cursor: pointer;
   box-sizing: border-box;
+  transition: all 140ms ease;
+}
+
+.cal-footer-btn-complete:hover {
+  background: #DCFCE7;
+  border-color: rgba(21, 128, 61, 0.4);
 }
 
 .cal-footer-btn-noshow {
@@ -4114,15 +4198,23 @@ textarea:focus-visible,
   align-items: center;
   gap: 4px;
   min-height: 28px;
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: var(--radius-xs);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  white-space: nowrap !important;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 140ms ease;
+}
+
+.cal-footer-btn-noshow:hover {
   background: var(--soft-red);
   color: var(--red);
-  border: 1px solid rgba(220, 38, 38, 0.25);
-  white-space: nowrap !important;
-  box-sizing: border-box;
+  border-color: rgba(220, 38, 38, 0.25);
 }
 
 /* Fallback for legacy .cal-slot-row */

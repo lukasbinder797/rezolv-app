@@ -418,7 +418,7 @@ export function ProB2BCalendar({
 
       {/* Hourly Slot Grid */}
       <div className="cal-slot-list">
-        {currentDay.slots.map((slot) => {
+        {currentDay.slots.map((slot, idx) => {
           const bk = slot.booking
           if (!bk) {
             const isPast = slot.status === "past"
@@ -436,14 +436,34 @@ export function ProB2BCalendar({
               >
                 <div className="cal-slot-free-hour">{slot.hour}</div>
                 <div className="cal-slot-free-text">
-                  {isPast ? "Interval încheiat" : "Interval disponibil · adaugă programare"}
+                  {isPast ? "Încheiat" : "Liber"}
                 </div>
-                <div className="cal-slot-free-badge nowrap">
-                  {isPast ? "Închis" : "+ Rezervă"}
-                </div>
+                {!isPast && (
+                  <div className="cal-slot-free-badge nowrap">
+                    + Rezervă
+                  </div>
+                )}
               </div>
             )
           }
+
+          // If this slot is a continuation of a multi-slot booking started earlier today, don't duplicate the card
+          const isContinuation = idx > 0 && currentDay.slots[idx - 1]?.booking?.id === bk.id
+          if (isContinuation) {
+            return null
+          }
+
+          // Compute end hour if booking spans consecutive slots in this day
+          let endHour = slot.hour
+          for (let k = idx + 1; k < currentDay.slots.length; k++) {
+            if (currentDay.slots[k].booking?.id === bk.id) {
+              const hourPart = parseInt(currentDay.slots[k].hour.split(":")[0], 10) + 1
+              endHour = `${String(hourPart).padStart(2, "0")}:00`
+            } else {
+              break
+            }
+          }
+          const timeRangeDisplay = endHour !== slot.hour ? `${slot.hour} – ${endHour}` : slot.hour
 
           const isEst = bk.status === "estimated"
           const isDone = bk.status === "completed"
@@ -464,7 +484,7 @@ export function ProB2BCalendar({
               {/* Card Header: Hour, duration, status on left; Price on right */}
               <div className="cal-card-head">
                 <div className="cal-card-head-left">
-                  <span className="cal-card-hour">{slot.hour}</span>
+                  <span className="cal-card-hour">{timeRangeDisplay}</span>
                   <span className="cal-card-duration">({bk.quote_duration ?? "60 min"})</span>
                   <span className={`cal-card-status-badge ${isEst ? "status-est" : "status-ok"} nowrap`}>
                     {isEst ? "Deviz trimis" : "Confirmat"}
@@ -520,7 +540,7 @@ export function ProB2BCalendar({
                     <button
                       type="button"
                       onClick={() => addBookingToNativeCalendar(bk, "pro")}
-                      className="cal-chip-btn cal-chip-cal"
+                      className="cal-chip-btn"
                     >
                       <SvgIcon name="calendar" size={12} />
                       <span className="nowrap">Calendar</span>
