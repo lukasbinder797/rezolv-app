@@ -157,14 +157,9 @@ export function ProB2BCalendar({
 
   return (
     <div className="section-block cal-section-container">
-      <div className="cal-section-header">
-        <div className="cal-header-title-row">
-          <div className="cal-title-wrap">
-            <h3 className="cal-title">Calendar teren B2B</h3>
-            <span className="cal-badge-2click nowrap">2-Click</span>
-          </div>
-          <span className="cal-header-sub nowrap">Blocare automată · SMS 24h / 2h</span>
-        </div>
+      <div className="cal-section-header-clean">
+        <h3 className="cal-title-clean">Agendă meșter</h3>
+        <span className="cal-date-indicator">{currentDay.day_name}, {currentDay.date_short}</span>
       </div>
 
       {/* 5-Day Selector Strip */}
@@ -188,21 +183,19 @@ export function ProB2BCalendar({
         })}
       </div>
 
-      {/* CRM Mode: Add Phone Call Client + Auto SMS 24h/2h + 1-Click Native Phone Calendar Sync */}
-      <div className="cal-crm-actions">
-        <div
-          role="button"
-          tabIndex={0}
-          className="pressable primary-button field-btn-giant"
-          style={{ marginTop: 0 }}
-          onClick={() => openManualForSlot()}
-        >
-          <SvgIcon name="phone" size={16} />
-          <span>Adaugă programare telefonică (CRM · SMS)</span>
-        </div>
+      {/* Clean Quick Actions */}
+      <div className="cal-actions-bar">
         <button
           type="button"
-          className="outline-button cal-sync-btn"
+          className="cal-btn-primary"
+          onClick={() => openManualForSlot()}
+        >
+          <SvgIcon name="plus" size={14} />
+          <span>Programare nouă</span>
+        </button>
+        <button
+          type="button"
+          className="cal-btn-secondary"
           onClick={() => {
             const allBooked = days
               .flatMap((d) => d.slots.map((s) => s.booking).filter((b): b is ApiBooking => Boolean(b)))
@@ -214,8 +207,8 @@ export function ProB2BCalendar({
             syncAllBookingsToNativeCalendar(allBooked, "pro")
           }}
         >
-          <SvgIcon name="calendar" size={15} />
-          <span className="nowrap">Sincronizează agenda în Calendar (.ics)</span>
+          <SvgIcon name="calendar" size={14} />
+          <span>Sincronizează</span>
         </button>
       </div>
 
@@ -503,7 +496,7 @@ export function ProB2BCalendar({
                         className="cal-chip-btn"
                       >
                         <SvgIcon name="phone" size={12} />
-                        <span className="nowrap">Apel client</span>
+                        <span className="nowrap">Apel</span>
                       </a>
                     )}
                     <a
@@ -513,7 +506,7 @@ export function ProB2BCalendar({
                       className="cal-chip-btn"
                     >
                       <SvgIcon name="navigation" size={12} />
-                      <span className="nowrap">Rută Waze</span>
+                      <span className="nowrap">Waze</span>
                     </a>
                     <a
                       href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeDest)}`}
@@ -522,7 +515,7 @@ export function ProB2BCalendar({
                       className="cal-chip-btn"
                     >
                       <SvgIcon name="pin" size={12} />
-                      <span className="nowrap">Rută Maps</span>
+                      <span className="nowrap">Maps</span>
                     </a>
                     <button
                       type="button"
@@ -530,27 +523,16 @@ export function ProB2BCalendar({
                       className="cal-chip-btn cal-chip-cal"
                     >
                       <SvgIcon name="calendar" size={12} />
-                      <span className="nowrap">În Calendar</span>
+                      <span className="nowrap">Calendar</span>
                     </button>
                   </div>
                 )}
 
-                {/* SMS Status Badges */}
-                <div className="sms-pill-row">
-                  <span className={`sms-pill ${smsSent > 0 ? "sent" : ""}`}>
-                    SMS livrate: {smsSent}
-                  </span>
-                  {smsScheduled > 0 && (
-                    <span className="sms-pill">
-                      În coadă (24h/2h): {smsScheduled}
-                    </span>
-                  )}
-                  {isEst && (
-                    <span className="sms-pill" style={{ background: "var(--soft-amber)", color: "var(--amber)" }}>
-                      Așteaptă confirmarea clientului
-                    </span>
-                  )}
-                </div>
+                {isEst && (
+                  <div className="cal-slot-note-amber">
+                    Așteaptă confirmarea devizului de către client
+                  </div>
+                )}
               </div>
 
               {/* Card Footer: Pro Management Actions */}

@@ -542,213 +542,92 @@ function BookingCard({
   onDeclineEstimate?: (b: ApiBooking) => void
   footer?: React.ReactNode
 }) {
-  const smsScheduled = (booking.sms_reminders ?? []).filter((s) => s.status === "scheduled").length
-  const smsSent = (booking.sms_reminders ?? []).filter((s) => s.status === "sent" || s.status === "delivered").length
+  const isEst = booking.status === "estimated"
+  const isAccepted = booking.status === "accepted"
+  const isCompleted = booking.status === "completed"
+  const proPhone = booking.professional?.phone
 
   return (
-    <div className="appointment-card" onClick={onClick}>
-      <div className="appointment-top">
-        <div className="service-symbol">
-          <Icon file={bookingIcon(booking.category)} />
+    <div className={`clean-booking-card ${isEst ? "is-estimated" : isAccepted ? "is-accepted" : ""}`} onClick={onClick}>
+      {/* Top Header: Service, Pro & Status */}
+      <div className="card-top-row">
+        <div className="card-title-group">
+          <div className="card-service-icon">
+            <Icon file={bookingIcon(booking.category)} />
+          </div>
+          <div>
+            <strong className="card-service-title">{booking.service_name}</strong>
+            <span className="card-pro-subtitle">
+              {booking.professional.name} · {booking.neighborhood ?? "Sibiu"}
+            </span>
+          </div>
         </div>
-        <div className="grow">
-          <strong>{booking.service_name}</strong>
-          <small>
-            Meșter: {booking.professional.name} · {booking.neighborhood ?? "Sibiu"}
-          </small>
-        </div>
-        <span className={`status ${booking.status}`}>
-          {STATUS_LABEL[booking.status] ?? booking.status}
+        <span className={`status-pill status-${booking.status}`}>
+          {isEst ? "Deviz primit" : STATUS_LABEL[booking.status] ?? booking.status}
         </span>
       </div>
-      <div className="divider" />
-      <div className="appointment-meta">
-        <span className="inline-meta">
-          <Icon file="c1dcb.svg" /> {booking.scheduled_for ?? booking.ago}
+
+      {/* Primary Key Figures: Schedule & Price */}
+      <div className="card-meta-chips">
+        <span className="meta-chip">
+          <SvgIcon name="calendar" size={13} />
+          <span>{booking.scheduled_for || booking.ago || "Programare stabilită"}</span>
         </span>
-        <strong>{bookingPrice(booking)}</strong>
+        {booking.quote_duration && (
+          <span className="meta-chip">
+            <SvgIcon name="clock" size={13} />
+            <span>{booking.quote_duration}</span>
+          </span>
+        )}
+        <span className="meta-chip price-chip tabular">
+          {bookingPrice(booking)}
+        </span>
       </div>
 
-      {/* 3-Step Estimate Handshake: Client Offer Card */}
-      {booking.status === "estimated" && (
-        <div className="estimate-offer-box" onClick={(e) => e.stopPropagation()}>
-          <div className="estimate-offer-head">
-            <span>Fișă de deviz primită de la meșter</span>
-            <span>0% comision</span>
-          </div>
-          <div className="estimate-offer-grid">
-            <div>
-              <small>Tarif estimat</small>
-              <strong>{booking.quote_price} RON</strong>
-            </div>
-            <div>
-              <small>Durată lucrare</small>
-              <strong>{booking.quote_duration ?? "1.5 ore"}</strong>
-            </div>
-            <div>
-              <small>Interval propus</small>
-              <strong>{booking.scheduled_for ?? "Mâine, 11:00"}</strong>
-            </div>
-          </div>
-          {(booking.pro_notes || booking.estimate?.pro_notes) && (
-            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 10px" }}>
-              <b>Notă tehnică:</b> „{booking.pro_notes ?? booking.estimate?.pro_notes}”
-            </p>
-          )}
-          {onAcceptEstimate && (
-            <div style={{ display: "grid", gap: 8 }}>
-              <Pressable
-                className="primary-button field-btn-giant"
-                onClick={() => onAcceptEstimate(booking)}
-              >
-                <SvgIcon name="check" size={16} />
-                <span>Acceptă devizul și blochează ora</span>
-              </Pressable>
-              {onDeclineEstimate && (
-                <Pressable
-                  className="outline-button compact"
-                  onClick={() => onDeclineEstimate(booking)}
-                >
-                  Solicită alt interval orar
-                </Pressable>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Active Twilio Anti-No-Show SMS Reminders Badge */}
-      {booking.status === "accepted" && (smsSent > 0 || smsScheduled > 0) && (
-        <div className="sms-pill-row">
-          <span className="sms-pill sent">Slot confirmat în agendă</span>
-          <span className="sms-pill">
-            Remindere SMS (24h / 2h): {smsScheduled} programate · {smsSent} livrate
-          </span>
-        </div>
-      )}
-
-      {/* Mutual Contact Details for Client once Accepted */}
-      {(booking.status === "accepted" || booking.status === "completed") && booking.professional?.phone && (
-        <div
-          style={{
-            margin: "8px 0",
-            padding: "8px 12px",
-            background: "var(--soft-green)",
-            borderRadius: 8,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            fontSize: 12,
-            border: "1px solid rgba(21, 128, 61, 0.22)",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="tabular">
-            Contact meșter: <strong>{booking.professional.phone}</strong>
-          </span>
-          <a
-            href={`tel:${booking.professional.phone.replace(/\s+/g, "")}`}
-            style={{
-              color: "var(--green)",
-              fontWeight: 600,
-              textDecoration: "none",
-              padding: "4px 10px",
-              background: "var(--surface)",
-              borderRadius: 6,
-              border: "1px solid rgba(21, 128, 61, 0.28)",
-            }}
-          >
-            Apel direct
-          </a>
-        </div>
-      )}
-
-      {/* Intervention Address Summary (Text only — no map/route buttons for clients) */}
-      {(booking.client_address || booking.client?.address || booking.neighborhood) && (
-        <div
-          style={{
-            margin: "6px 0 4px",
-            fontSize: 12,
-            color: "var(--text-secondary)",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <SvgIcon name="pin" size={13} />
-          <span>
-            Adresă intervenție:{" "}
-            <strong style={{ color: "var(--text-primary)" }}>
-              {booking.client_address || booking.client?.address || `${booking.neighborhood}, Sibiu`}
-            </strong>
-          </span>
-        </div>
-      )}
-
-      {/* 1-Click Native Phone Calendar (.ics / Apple Calendar / Google Calendar) */}
-      {booking.status !== "cancelled" && booking.status !== "refused" && (
-        <div
-          style={{
-            margin: "10px 0 8px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexWrap: "wrap",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
+      {/* Quote acceptance CTA (Only when estimate is waiting) */}
+      {isEst && onAcceptEstimate && (
+        <div className="card-cta-group" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={() => addBookingToNativeCalendar(booking, "client")}
-            style={{
-              height: 36,
-              padding: "0 12px",
-              borderRadius: "var(--radius-xs)",
-              background: "var(--navy)",
-              color: "var(--white)",
-              border: "1px solid var(--navy)",
-              fontSize: 12,
-              fontWeight: 600,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
+            className="primary-button cta-btn"
+            onClick={() => onAcceptEstimate(booking)}
           >
-            <SvgIcon name="calendar" size={14} />
-            <span>Adaugă în Calendarul Telefonului</span>
+            <SvgIcon name="check" size={15} />
+            <span>Acceptă devizul ({booking.quote_price} RON)</span>
           </button>
-
-          <a
-            href={buildGoogleCalendarUrl(booking, "client")}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              height: 36,
-              padding: "0 10px",
-              borderRadius: "var(--radius-xs)",
-              background: "var(--surface-raised)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--border-strong)",
-              fontSize: 11,
-              fontWeight: 600,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-            }}
-          >
-            <SvgIcon name="calendar" size={13} />
-            <span>Google Cal</span>
-          </a>
+          {onDeclineEstimate && (
+            <button
+              type="button"
+              className="quiet-text-button"
+              onClick={() => onDeclineEstimate(booking)}
+            >
+              Alt interval sau detalii
+            </button>
+          )}
         </div>
       )}
 
-      <div className="payment-note">
-        <span className="inline-meta">
-          <SvgIcon name="check" size={14} /> Plata direct la meșter la finalizare (0% comision)
-        </span>
-      </div>
-      {footer}
+      {/* Contact & Calendar Quick Actions (When active/accepted) */}
+      {(isAccepted || isCompleted) && (
+        <div className="card-action-chips" onClick={(e) => e.stopPropagation()}>
+          {proPhone && (
+            <a href={`tel:${proPhone.replace(/\s+/g, "")}`} className="action-chip call-chip">
+              <SvgIcon name="phone" size={13} />
+              <span>Sună meșterul</span>
+            </a>
+          )}
+          <button
+            type="button"
+            className="action-chip cal-chip"
+            onClick={() => addBookingToNativeCalendar(booking, "client")}
+          >
+            <SvgIcon name="calendar" size={13} />
+            <span>În Calendar</span>
+          </button>
+        </div>
+      )}
+
+      {footer && <div className="card-footer-slot">{footer}</div>}
     </div>
   )
 }
@@ -786,108 +665,57 @@ function ClientHome({
     (b) => b.status === "estimated" || b.status === "accepted" || b.status === "pending",
   ).length
 
+  const firstName = (user.name || "Client").trim().split(" ")[0]
+
   return (
     <div className="screen-content client-home">
-      <header className="app-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              padding: 4,
-              display: "grid",
-              placeItems: "center",
-              flexShrink: 0,
-            }}
-          >
-            <img
-              src={assetUrl("rezolv-logo.png")}
-              alt="REZOLV"
-              style={{ width: 36, height: 36, objectFit: "contain" }}
-            />
+      {/* Clean Minimal Header */}
+      <header className="home-header">
+        <div className="home-greeting">
+          <div className="greeting-row">
+            <h1 className="greeting-title">Salut, {firstName}!</h1>
+            <button
+              type="button"
+              className="location-pill"
+              onClick={onProfile}
+              title="Schimbă adresa de reședință din profil"
+            >
+              <SvgIcon name="pin" size={12} />
+              <span>{user.neighborhood || "Sibiu"}</span>
+            </button>
           </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "var(--navy)",
-                }}
-              >
-                REZOLV Sibiu
-              </span>
-              <button
-                type="button"
-                onClick={onProfile}
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  padding: "2px 8px",
-                  background: "var(--surface-raised)",
-                  color: "var(--navy)",
-                  border: "1px solid var(--border-strong)",
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <SvgIcon name="pin" size={12} />
-                <span>{user.neighborhood || "Sibiu"} · Setări adresă</span>
-              </button>
-            </div>
-            <div className="screen-title" style={{ margin: "2px 0 0", fontSize: 18, lineHeight: "24px" }}>
-              Servicii și intervenții locale
-            </div>
-            <small style={{ color: "var(--text-secondary)", fontSize: 12 }}>
-              {user.address ? `Adresă reședință: ${user.address}` : `Cont client · ${user.name}`}
-            </small>
-          </div>
+          <p className="greeting-sub">Ce dorești să rezolvi astăzi?</p>
         </div>
-        <Pressable
-          ariaLabel="Deschide profilul"
-          className="avatar"
+        <button
+          type="button"
+          aria-label="Deschide profilul"
+          className="home-avatar"
           onClick={onProfile}
         >
           {user.initials || "LB"}
-        </Pressable>
+        </button>
       </header>
 
+      {/* Sleek Search Input */}
       <div className="search-shell">
-        <Icon file="91214.svg" />
+        <SvgIcon name="search" size={16} style={{ color: "var(--text-muted)" }} />
         <Field
           value={query}
           onChange={setQuery}
-          placeholder="Caută un meșter sau serviciu în Sibiu..."
+          placeholder="Caută meșter sau serviciu în Sibiu..."
         />
       </div>
 
-      {/* Cohesive Technical Guarantee Grid */}
-      <div className="trust-strip">
-        <div className="trust-strip-item">
-          <span className="trust-strip-dot" />
-          <span>Firme verificate CUI</span>
-        </div>
-        <div className="trust-strip-item">
-          <span className="trust-strip-dot" />
-          <span>0% comision lucrare</span>
-        </div>
-        <div className="trust-strip-item">
-          <span className="trust-strip-dot" />
-          <span>Remindere SMS 24h / 2h</span>
-        </div>
-        <div className="trust-strip-item">
-          <span className="trust-strip-dot" />
-          <span>Plată direct la meșter</span>
-        </div>
+      {/* Quiet Single-Line Trust Bar */}
+      <div className="trust-strip-clean">
+        <span>🛡️ Meșteri verificați</span>
+        <span className="dot-sep">·</span>
+        <span>⚡ Confirmare rapidă</span>
+        <span className="dot-sep">·</span>
+        <span>💳 Plată directă</span>
       </div>
 
+      {/* Review banner when finished */}
       {reviewable && (
         <Pressable
           className="review-notification"
@@ -895,38 +723,36 @@ function ClientHome({
         >
           <div className="notification-mark">✓</div>
           <div className="grow">
-            <strong>Lucrarea a fost finalizată</strong>
-            <small>Spune-ne cum a fost experiența cu meșterul.</small>
+            <strong>Lucrare finalizată</strong>
+            <small>Spune-ne cum a fost experiența cu {reviewable.professional.name}.</small>
           </div>
           <span>Evaluează</span>
         </Pressable>
       )}
 
-      <section className="section-block active-section">
-        <div className="section-heading">
-          <div>{inProgress ? "Cereri & Estimări Active" : "Ultima programare"}</div>
-          <span>
-            {inProgress ? `${inProgress} în desfășurare` : "Istoric"}
-          </span>
-        </div>
-        {current ? (
+      {/* Active Work Section (If any) */}
+      {current && (
+        <section className="section-block active-section">
+          <div className="section-heading">
+            <div>{inProgress ? "Lucrare în desfășurare" : "Ultima solicitare"}</div>
+            <button type="button" className="section-link-quiet" onClick={onOpenBookings}>
+              {inProgress > 1 ? `Toate (${inProgress})` : "Istoric"}
+            </button>
+          </div>
           <BookingCard
             booking={current}
             onClick={onOpenBookings}
             onAcceptEstimate={onAcceptEstimate}
             onDeclineEstimate={onDeclineEstimate}
           />
-        ) : (
-          <div className="list-note">
-            Nu ai programări încă. Alege o categorie pentru a găsi un meșter în Sibiu.
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
+      {/* Categories Grid */}
       <section className="section-block category-section">
         <div className="section-heading">
-          <div>Toate Categoriile</div>
-          <small>12 servicii disponibile</small>
+          <div>Categorii meșteri</div>
+          <small>{filtered.length} domenii</small>
         </div>
         <div className="category-grid">
           {filtered.map(([name, price, icon, color]) => (
@@ -939,7 +765,7 @@ function ClientHome({
                 <Icon file={icon} />
               </div>
               <strong>{name}</strong>
-              <small>{price}</small>
+              <small>{price ? price.replace("RON", "lei") : ""}</small>
             </Pressable>
           ))}
         </div>
@@ -1032,20 +858,17 @@ function Discovery({
   return (
     <div className="screen-content discovery">
       <div className="hero">
-        <div className="trust-pill">
-          Meșteri verificați · Rezervare gratuită · Plata cash
-        </div>
-        <div className="hero-title">Ce ai nevoie să rezolvi?</div>
+        <h2 className="hero-title">Ce ai nevoie să rezolvi?</h2>
         <div className="problem-composer">
           <div className="composer-label">
-            <Icon file="91214.svg" />
+            <SvgIcon name="wrench" size={13} />
             <span>Descrie problema</span>
           </div>
           <Field
             multiline
             value={problem}
             onChange={setProblem}
-            placeholder="Ex: Nu merge centrala termică, s-a ars siguranța, am făcut pană la roată, s-a blocat ușa..."
+            placeholder="Ex: Nu mai încălzește centrala, picură bateria la baie, s-a ars siguranța..."
           />
           {photos.length > 0 && (
             <div className="photo-previews">
@@ -1071,7 +894,7 @@ function Discovery({
               <PhotoInput onSelect={addPhotos} />
               <span className="camera-icon" />
               <span>
-                Atașează poze
+                Adaugă poze
                 <small>{photos.length}/4</small>
               </span>
             </label>
@@ -1082,19 +905,13 @@ function Discovery({
             >
               {analyzing ? (
                 <>
-                  <span className="spinner" /> Se verifică...
+                  <span className="spinner" /> Se identifică meșterul...
                 </>
               ) : (
-                <>Identifică serviciul →</>
+                <>Găsește meșterul →</>
               )}
             </Pressable>
           </div>
-        </div>
-        <div className="ai-card">
-          <strong>Triaj tehnic automat pe toate cele 12 domenii din Sibiu</strong>
-          <span>
-            Recunoaște descrieri în limbaj natural (cu sau fără diacritice) și selectează meșterul autorizat.
-          </span>
         </div>
       </div>
       {recommendation && (
@@ -2950,33 +2767,25 @@ function ProDashboard({
             : "Firma ta este în curs de verificare. Profilul va deveni public după aprobare."}
         </div>
       )}
-      <section className="summary-card">
-        <div className="summary-top">
-          <span>
-            Încasări săptămânale · Sibiu
-            <br />
-            100% încasat direct · 0% comision
-          </span>
-          <b>
-            {data?.week.change_pct == null
-              ? "—"
-              : `${data.week.change_pct >= 0 ? "+" : ""}${data.week.change_pct}%`}{" "}
-            vs săpt.
-            <br />
-            trecută
-          </b>
+      <section className="summary-card-clean">
+        <div className="summary-main-kpi">
+          <small className="kpi-subtitle">Încasări săptămână</small>
+          <div className="kpi-large-figure tabular">
+            {fmt(data?.week.revenue ?? 0)} <span className="kpi-curr">RON</span>
+          </div>
         </div>
-        <div className="revenue">
-          {fmt(data?.week.revenue ?? 0)} <small>RON</small>
-          <span>· {data?.week.jobs ?? 0} lucrări finalizate</span>
-        </div>
-        <div className="plan-status">
-          {planLabel}{" "}
-          <b>
-            {data?.plan.renews_in_days != null
-              ? `Reînnoire în ${data.plan.renews_in_days} zile`
-              : ""}
-          </b>
+        <div className="summary-pills-row">
+          <div className="kpi-badge">
+            <SvgIcon name="check" size={12} />
+            <span>{data?.week.jobs ?? 0} lucrări finalizate</span>
+          </div>
+          <div className="kpi-badge">
+            <SvgIcon name="star" size={12} />
+            <span>4.9 rating</span>
+          </div>
+          <div className="kpi-badge kpi-plan-badge">
+            <span>Abonament activ</span>
+          </div>
         </div>
       </section>
       <section className="section-block pro-section">
@@ -3007,79 +2816,55 @@ function ProDashboard({
           const destAddr = b.client_address || b.client.address || `${b.neighborhood || "Hipodrom"}, Sibiu`
           const routeQuery = formatSibiuRouteQuery(destAddr, b.neighborhood)
           return (
-            <div className={`request-card ${i === 0 ? "featured" : ""}`} key={b.id}>
-              <div className="request-state">
-                <span className={b.status === "estimated" ? "muted-badge" : ""}>
+            <div className={`request-card-clean ${i === 0 ? "featured" : ""}`} key={b.id}>
+              <div className="request-state-row">
+                <span className={`status-pill ${b.status === "estimated" ? "status-estimated" : "status-urgent"}`}>
                   {b.status === "estimated"
-                    ? "Deviz trimis · așteaptă confirmarea"
+                    ? "Deviz trimis"
                     : b.urgency_level === "urgent_today"
-                      ? "Urgență azi · " + (b.neighborhood ?? "Sibiu")
-                      : "Cerere nouă · " + (b.neighborhood ?? "Sibiu")}
+                      ? "Urgență azi"
+                      : "Cerere nouă"}
                 </span>
-                <b>{b.ago}</b>
+                <span className="request-time-ago">{b.ago}</span>
               </div>
-              <strong>{b.service_name}</strong>
-              <small>
-                Client: {b.client.name} · <strong>{destAddr}</strong>
-                {b.preferred_window ? ` · Interval dorit: ${b.preferred_window}` : ""}
-              </small>
-              <div className="client-note">
-                <b>Notă client:</b> „{b.description}”
+              <strong className="request-service-title">{b.service_name}</strong>
+              <div className="request-client-sub">
+                <span>{b.client.name}</span>
+                <span className="dot-sep">·</span>
+                <span>{destAddr}</span>
+                {b.preferred_window && (
+                  <>
+                    <span className="dot-sep">·</span>
+                    <span className="request-window">{b.preferred_window}</span>
+                  </>
+                )}
               </div>
-              {/* Route calculation via Waze & Google Maps exclusively for Tradespeople */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              {b.description && (
+                <div className="client-note-clean">
+                  „{b.description}”
+                </div>
+              )}
+              {/* Route calculation via Waze & Google Maps */}
+              <div className="request-route-row">
                 <a
                   href={`https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`}
                   target="_blank"
                   rel="noreferrer"
-                  style={{
-                    height: 32,
-                    padding: "0 10px",
-                    borderRadius: "var(--radius-xs)",
-                    background: "var(--surface-raised)",
-                    color: "var(--navy)",
-                    border: "1px solid var(--border-strong)",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
-                  }}
+                  className="route-chip"
                 >
-                  <SvgIcon name="navigation" size={12} />
-                  <span className="nowrap">Rută Waze</span>
+                  <SvgIcon name="navigation" size={11} />
+                  <span>Rută Waze</span>
                 </a>
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`}
                   target="_blank"
                   rel="noreferrer"
-                  style={{
-                    height: 32,
-                    padding: "0 10px",
-                    borderRadius: "var(--radius-xs)",
-                    background: "var(--surface-raised)",
-                    color: "var(--text-primary)",
-                    border: "1px solid var(--border-strong)",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5,
-                  }}
+                  className="route-chip"
                 >
-                  <SvgIcon name="pin" size={12} />
-                  <span className="nowrap">Rută Maps</span>
+                  <SvgIcon name="pin" size={11} />
+                  <span>Rută Maps</span>
                 </a>
               </div>
-              {b.status === "estimated" && (
-                <div className="sms-pill-row" style={{ marginTop: 8 }}>
-                  <span className="sms-pill sent">
-                    Deviz propus: {b.quote_price} RON ({b.quote_duration}) · {b.scheduled_for}
-                  </span>
-                </div>
-              )}
               {b.photos && b.photos.length > 0 && (
                 <div className="review-photos">
                   {b.photos.map((p, k) => (
@@ -3087,17 +2872,17 @@ function ProDashboard({
                   ))}
                 </div>
               )}
-              <div className="request-actions" style={{ marginTop: 14 }}>
+              <div className="request-actions">
                 <Pressable
-                  className="primary-button field-btn-giant"
+                  className="primary-button compact"
                   onClick={() => onQuote(b)}
                 >
                   {b.status === "estimated"
                     ? "Modifică devizul"
-                    : "Trimite deviz (2 pași)"}
+                    : "Trimite deviz"}
                 </Pressable>
                 <Pressable
-                  className="field-btn-secondary"
+                  className="outline-button compact"
                   onClick={() => onRefuse(b)}
                 >
                   Refuză
@@ -3113,7 +2898,7 @@ function ProDashboard({
             days={data.calendar.days}
             quickSlots={data.calendar.quick_free_slots}
             onRefresh={onRefresh}
-            onNotice={(msg) => onAction({ title: "Agendă și SMS actualizate", message: msg })}
+            onNotice={(msg) => onAction({ title: "Agendă actualizată", message: msg })}
             onError={(title, msg) => onAction({ title, message: msg })}
           />
         )}
@@ -3131,73 +2916,62 @@ function ProDashboard({
             const routeQuery = formatSibiuRouteQuery(destAddr, b.neighborhood)
             const clientPhone = b.client_phone || b.client.phone
             return (
-              <div className={`schedule-card ${done ? "green-line" : "blue-line"}`} key={b.id}>
-                <b>
-                  {b.time_label.split(", ").pop()}
-                  <small>{done ? "Finalizat" : "Confirmat"}</small>
-                </b>
+              <div className={`schedule-card-clean ${done ? "is-done" : ""}`} key={b.id}>
+                <div className="schedule-card-time">
+                  <span className="schedule-hour">{b.time_label.split(", ").pop()}</span>
+                  <span className={`schedule-status-badge ${done ? "done" : "active"}`}>
+                    {done ? "Finalizat" : "Confirmat"}
+                  </span>
+                </div>
                 <div className="grow">
-                  <strong>
-                    {b.service_name} ({b.quote_price} RON)
+                  <strong className="schedule-service-title">
+                    {b.service_name} · <span className="tabular">{b.quote_price} RON</span>
                   </strong>
-                  <small style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
+                  <div className="schedule-client-line">
                     {b.client.name} · {destAddr}
-                  </small>
+                  </div>
                   {done ? (
-                    <span>
-                      Încasat: {b.quote_price} RON (0% comision) · Clientul poate lăsa o recenzie
-                    </span>
+                    <div className="schedule-done-note">
+                      ✓ Lucrare finalizată cu succes
+                    </div>
                   ) : (
-                    <>
-                      <div className="schedule-chips-row">
-                        {clientPhone && (
-                          <a
-                            href={`tel:${clientPhone.replace(/\s+/g, "")}`}
-                            className="chip-button"
-                            style={{ textDecoration: "none" }}
-                          >
-                            <SvgIcon name="phone" size={12} />
-                            <span className="nowrap">Apel client</span>
-                          </a>
-                        )}
+                    <div className="schedule-chips-row">
+                      {clientPhone && (
                         <a
-                          href={`https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="chip-button"
-                          style={{ textDecoration: "none" }}
+                          href={`tel:${clientPhone.replace(/\s+/g, "")}`}
+                          className="chip-btn-clean"
                         >
-                          <SvgIcon name="navigation" size={12} />
-                          <span className="nowrap">Rută Waze</span>
+                          <SvgIcon name="phone" size={12} />
+                          <span className="nowrap">Apel</span>
                         </a>
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="chip-button"
-                          style={{ textDecoration: "none" }}
-                        >
-                          <SvgIcon name="pin" size={12} />
-                          <span className="nowrap">Rută Maps</span>
-                        </a>
-                        <button
-                          type="button"
-                          className="chip-button"
-                          style={{
-                            background: "var(--navy)",
-                            color: "var(--white)",
-                            borderColor: "var(--navy)",
-                          }}
-                          onClick={() => addBookingToNativeCalendar(b, "pro")}
-                        >
-                          <SvgIcon name="calendar" size={12} />
-                          <span className="nowrap">În Calendar</span>
-                        </button>
-                      </div>
-                      <Pressable className="complete-job-button" onClick={() => onComplete(b)}>
-                        Marchează ca finalizată
-                      </Pressable>
-                    </>
+                      )}
+                      <a
+                        href={`https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="chip-btn-clean"
+                      >
+                        <SvgIcon name="navigation" size={12} />
+                        <span className="nowrap">Rută Waze</span>
+                      </a>
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="chip-btn-clean"
+                      >
+                        <SvgIcon name="pin" size={12} />
+                        <span className="nowrap">Rută Maps</span>
+                      </a>
+                      <button
+                        type="button"
+                        className="complete-chip-btn"
+                        onClick={() => onComplete(b)}
+                      >
+                        <SvgIcon name="check" size={12} />
+                        <span className="nowrap">Finalizează</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
