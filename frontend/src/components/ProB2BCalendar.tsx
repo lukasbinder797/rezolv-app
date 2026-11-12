@@ -156,18 +156,22 @@ export function ProB2BCalendar({
   if (!currentDay) return null
 
   return (
-    <div className="section-block" style={{ padding: 16 }}>
-      <div className="section-heading" style={{ marginTop: 0 }}>
-        <div>
-          Calendar teren B2B <span className="count">2-Click</span>
+    <div className="section-block cal-section-container">
+      <div className="cal-section-header">
+        <div className="cal-header-title-row">
+          <div className="cal-title-wrap">
+            <h3 className="cal-title">Calendar teren B2B</h3>
+            <span className="cal-badge-2click nowrap">2-Click</span>
+          </div>
+          <span className="cal-header-sub nowrap">Blocare automată · SMS 24h / 2h</span>
         </div>
-        <small>Blocare automată · SMS 24h / 2h</small>
       </div>
 
       {/* 5-Day Selector Strip */}
       <div className="cal-day-strip">
         {days.map((d, idx) => {
           const busyCount = d.slots.filter((s) => s.booking && s.booking.status !== "completed").length
+          const shortDay = d.day_name === "Sâmbătă" ? "Sâm" : d.day_name === "Duminică" ? "Dum" : d.day_name
           return (
             <div
               key={d.date_iso}
@@ -176,7 +180,7 @@ export function ProB2BCalendar({
               className={`pressable cal-day-pill ${idx === selectedDayIdx ? "active" : ""}`}
               onClick={() => setSelectedDayIdx(idx)}
             >
-              <strong>{d.day_name}</strong>
+              <strong>{shortDay}</strong>
               <small>{d.date_short}</small>
               <i>{busyCount > 0 ? `${busyCount} lucr.` : "Liber"}</i>
             </div>
@@ -185,7 +189,7 @@ export function ProB2BCalendar({
       </div>
 
       {/* CRM Mode: Add Phone Call Client + Auto SMS 24h/2h + 1-Click Native Phone Calendar Sync */}
-      <div style={{ margin: "12px 0", display: "grid", gap: 8 }}>
+      <div className="cal-crm-actions">
         <div
           role="button"
           tabIndex={0}
@@ -198,8 +202,7 @@ export function ProB2BCalendar({
         </div>
         <button
           type="button"
-          className="outline-button"
-          style={{ minHeight: 42, fontSize: 12, fontWeight: 600 }}
+          className="outline-button cal-sync-btn"
           onClick={() => {
             const allBooked = days
               .flatMap((d) => d.slots.map((s) => s.booking).filter((b): b is ApiBooking => Boolean(b)))
@@ -212,7 +215,7 @@ export function ProB2BCalendar({
           }}
         >
           <SvgIcon name="calendar" size={15} />
-          <span>Sincronizează agenda în Calendarul Telefonului (.ics)</span>
+          <span className="nowrap">Sincronizează agenda în Calendar (.ics)</span>
         </button>
       </div>
 
@@ -431,29 +434,20 @@ export function ProB2BCalendar({
                 key={slot.hour}
                 role={isPast ? undefined : "button"}
                 tabIndex={isPast ? -1 : 0}
-                className={`cal-slot-row slot-free ${isPast ? "" : "pressable"}`}
+                className={`cal-slot-free-row ${isPast ? "is-past" : "pressable"}`}
                 onClick={
                   isPast
                     ? undefined
                     : () => openManualForSlot(slot.start_at, slot.label || `${currentDay.day_name}, ${slot.hour}`)
                 }
               >
-                <div className="cal-slot-hour">{slot.hour}</div>
-                <div className="grow">
-                  <small style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                    {isPast ? "Interval încheiat" : "Interval disponibil · adaugă programare"}
-                  </small>
+                <div className="cal-slot-free-hour">{slot.hour}</div>
+                <div className="cal-slot-free-text">
+                  {isPast ? "Interval încheiat" : "Interval disponibil · adaugă programare"}
                 </div>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: isPast ? "var(--text-muted)" : "var(--navy)",
-                    fontFamily: "var(--font-mono)",
-                    fontWeight: 500,
-                  }}
-                >
+                <div className="cal-slot-free-badge nowrap">
                   {isPast ? "Închis" : "+ Rezervă"}
-                </span>
+                </div>
               </div>
             )
           }
@@ -464,92 +458,84 @@ export function ProB2BCalendar({
           const smsSent = (bk.sms_reminders ?? []).filter(
             (s) => s.status === "sent" || s.status === "delivered",
           ).length
+          const clientPhone = bk.client_phone || bk.client.phone
+          const clientAddr = bk.client_address || bk.client.address || ""
+          const rawAddr = (clientAddr || bk.neighborhood || "Sibiu").trim()
+          const routeDest = /sibiu/i.test(rawAddr) ? `${rawAddr}, România` : `${rawAddr}, Sibiu, România`
 
           return (
             <div
               key={slot.hour}
-              className={`cal-slot-row ${isEst ? "slot-estimated" : "slot-accepted"}`}
+              className={`cal-booking-card ${isEst ? "slot-estimated" : "slot-accepted"}`}
             >
-              <div className="cal-slot-hour">
-                {slot.hour}
-                <small style={{ display: "block", fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
-                  {bk.quote_duration ?? "60 min"}
-                </small>
+              {/* Card Header: Hour, duration, status on left; Price on right */}
+              <div className="cal-card-head">
+                <div className="cal-card-head-left">
+                  <span className="cal-card-hour">{slot.hour}</span>
+                  <span className="cal-card-duration">({bk.quote_duration ?? "60 min"})</span>
+                  <span className={`cal-card-status-badge ${isEst ? "status-est" : "status-ok"} nowrap`}>
+                    {isEst ? "Deviz trimis" : "Confirmat"}
+                  </span>
+                </div>
+                <div className="cal-card-price tabular nowrap">
+                  {bk.quote_price ?? "—"} RON
+                </div>
               </div>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <strong style={{ fontSize: 13, display: "block" }} className="tabular">
-                  {bk.service_name} · {bk.quote_price ?? "—"} RON
-                </strong>
-                <small style={{ color: "var(--text-secondary)", fontSize: 12, marginTop: 2, display: "block" }}>
-                  {bk.client.name} · {bk.neighborhood ?? "Sibiu"}
-                  {bk.client_address
-                    ? ` · ${bk.client_address}`
-                    : bk.client.address
-                      ? ` · ${bk.client.address}`
-                      : ""}
-                  {bk.client_phone
-                    ? ` · ${bk.client_phone}`
-                    : bk.client.phone
-                      ? ` · ${bk.client.phone}`
-                      : ""}
-                </small>
 
-                {/* Quick Field Navigation & Direct Client Call */}
-                {!isDone && (() => {
-                  const rawAddr = (bk.client_address || bk.client.address || bk.neighborhood || "Sibiu").trim()
-                  const routeDest = /sibiu/i.test(rawAddr) ? `${rawAddr}, România` : `${rawAddr}, Sibiu, România`
-                  return (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                    {(bk.client_phone || bk.client.phone) && (
+              {/* Card Body: Service name, client name and full address */}
+              <div className="cal-card-body">
+                <div className="cal-card-service">{bk.service_name}</div>
+                <div className="cal-card-client-line">
+                  <strong>{bk.client.name}</strong>
+                  <span className="cal-card-sep">·</span>
+                  <span>
+                    {bk.neighborhood ?? "Sibiu"}
+                    {clientAddr ? ` · ${clientAddr}` : ""}
+                  </span>
+                </div>
+
+                {/* Quick Route & Contact chips */}
+                {!isDone && (
+                  <div className="cal-chips-row">
+                    {clientPhone && (
                       <a
-                        href={`tel:${(bk.client_phone || bk.client.phone)!.replace(/\s+/g, "")}`}
-                        className="chip-button"
-                        style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
+                        href={`tel:${clientPhone.replace(/\s+/g, "")}`}
+                        className="cal-chip-btn"
                       >
                         <SvgIcon name="phone" size={12} />
-                        <span>Apel client</span>
+                        <span className="nowrap">Apel client</span>
                       </a>
                     )}
                     <a
                       href={`https://waze.com/ul?q=${encodeURIComponent(routeDest)}&navigate=yes`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="chip-button"
-                      style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
+                      className="cal-chip-btn"
                     >
                       <SvgIcon name="navigation" size={12} />
-                      <span>Rută Waze</span>
+                      <span className="nowrap">Rută Waze</span>
                     </a>
                     <a
                       href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeDest)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="chip-button"
-                      style={{ textDecoration: "none", minHeight: 28, padding: "2px 8px", fontSize: 11 }}
+                      className="cal-chip-btn"
                     >
                       <SvgIcon name="pin" size={12} />
-                      <span>Rută Maps</span>
+                      <span className="nowrap">Rută Maps</span>
                     </a>
                     <button
                       type="button"
                       onClick={() => addBookingToNativeCalendar(bk, "pro")}
-                      className="chip-button"
-                      style={{
-                        minHeight: 28,
-                        padding: "2px 8px",
-                        fontSize: 11,
-                        background: "var(--navy)",
-                        color: "var(--white)",
-                        borderColor: "var(--navy)",
-                      }}
+                      className="cal-chip-btn cal-chip-cal"
                     >
                       <SvgIcon name="calendar" size={12} />
-                      <span>În Calendar</span>
+                      <span className="nowrap">În Calendar</span>
                     </button>
                   </div>
-                  )
-                })()}
+                )}
 
+                {/* SMS Status Badges */}
                 <div className="sms-pill-row">
                   <span className={`sms-pill ${smsSent > 0 ? "sent" : ""}`}>
                     SMS livrate: {smsSent}
@@ -566,62 +552,51 @@ export function ProB2BCalendar({
                   )}
                 </div>
               </div>
+
+              {/* Card Footer: Pro Management Actions */}
               {!isDone && (
-                <div className="cal-slot-actions" style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="pressable choose-button"
-                    style={{ marginTop: 0 }}
-                    onClick={() => setRescheduleTarget(bk)}
-                  >
-                    {busyId === bk.id ? "..." : "Reprogramează"}
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
+                <div className="cal-card-footer">
+                  <div className="cal-footer-left-group">
                     <button
                       type="button"
-                      className="chip-button"
-                      style={{
-                        minHeight: 28,
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        background: "var(--soft-green)",
-                        color: "var(--green)",
-                        borderColor: "rgba(21, 128, 61, 0.22)",
-                      }}
+                      className="cal-footer-btn-resched"
+                      onClick={() => setRescheduleTarget(bk)}
+                    >
+                      <SvgIcon name="clock" size={12} />
+                      <span className="nowrap">{busyId === bk.id ? "..." : "Reprogramează"}</span>
+                    </button>
+                    {smsScheduled > 0 && (
+                      <button
+                        type="button"
+                        className="cal-footer-btn-sms"
+                        onClick={() => handleTriggerSms(bk)}
+                        title="Trimite SMS manual acum"
+                      >
+                        <SvgIcon name="phone" size={11} />
+                        <span className="nowrap">Trimite SMS</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="cal-footer-right-group">
+                    <button
+                      type="button"
+                      className="cal-footer-btn-complete"
                       onClick={() => handleComplete(bk)}
                       title="Marchează lucrarea ca finalizată"
                     >
-                      Finalizat
+                      <SvgIcon name="check" size={12} />
+                      <span className="nowrap">Finalizat</span>
                     </button>
                     <button
                       type="button"
-                      className="chip-button"
-                      style={{
-                        minHeight: 28,
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        background: "var(--soft-red)",
-                        color: "var(--red)",
-                        borderColor: "rgba(220, 38, 38, 0.22)",
-                      }}
+                      className="cal-footer-btn-noshow"
                       onClick={() => handleNoShow(bk)}
                       title="Raportează client absent (No-Show)"
                     >
-                      Absent
+                      <SvgIcon name="close" size={12} />
+                      <span className="nowrap">Absent</span>
                     </button>
                   </div>
-                  {smsScheduled > 0 && (
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="pressable"
-                      style={{ fontSize: 11, color: "var(--navy)", fontWeight: 500 }}
-                      onClick={() => handleTriggerSms(bk)}
-                    >
-                      Trimite SMS acum
-                    </div>
-                  )}
                 </div>
               )}
             </div>

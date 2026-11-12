@@ -3047,8 +3047,8 @@ function ProDashboard({
                     gap: 5,
                   }}
                 >
-                  <SvgIcon name="pin" size={12} />
-                  <span>Rută Waze</span>
+                  <SvgIcon name="navigation" size={12} />
+                  <span className="nowrap">Rută Waze</span>
                 </a>
                 <a
                   href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`}
@@ -3070,7 +3070,7 @@ function ProDashboard({
                   }}
                 >
                   <SvgIcon name="pin" size={12} />
-                  <span>Rută Maps</span>
+                  <span className="nowrap">Rută Maps</span>
                 </a>
               </div>
               {b.status === "estimated" && (
@@ -3140,7 +3140,7 @@ function ProDashboard({
                   <strong>
                     {b.service_name} ({b.quote_price} RON)
                   </strong>
-                  <small>
+                  <small style={{ overflowWrap: "break-word", wordBreak: "normal" }}>
                     {b.client.name} · {destAddr}
                   </small>
                   {done ? (
@@ -3149,44 +3149,51 @@ function ProDashboard({
                     </span>
                   ) : (
                     <>
-                      <span className="schedule-actions">
+                      <div className="schedule-chips-row">
                         {clientPhone && (
-                          <Pressable
-                            onClick={() => {
-                              window.location.href = `tel:${clientPhone.replace(/\s+/g, "")}`
-                            }}
+                          <a
+                            href={`tel:${clientPhone.replace(/\s+/g, "")}`}
+                            className="chip-button"
+                            style={{ textDecoration: "none" }}
                           >
-                            Apel client
-                          </Pressable>
+                            <SvgIcon name="phone" size={12} />
+                            <span className="nowrap">Apel client</span>
+                          </a>
                         )}
-                        <Pressable
-                          onClick={() =>
-                            window.open(
-                              `https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`,
-                              "_blank",
-                              "noopener,noreferrer",
-                            )
-                          }
+                        <a
+                          href={`https://waze.com/ul?q=${encodeURIComponent(routeQuery)}&navigate=yes`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="chip-button"
+                          style={{ textDecoration: "none" }}
                         >
-                          Rută Waze
-                        </Pressable>
-                        <Pressable
-                          onClick={() =>
-                            window.open(
-                              `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`,
-                              "_blank",
-                              "noopener,noreferrer",
-                            )
-                          }
+                          <SvgIcon name="navigation" size={12} />
+                          <span className="nowrap">Rută Waze</span>
+                        </a>
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(routeQuery)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="chip-button"
+                          style={{ textDecoration: "none" }}
                         >
-                          Rută Maps
-                        </Pressable>
-                        <Pressable
+                          <SvgIcon name="pin" size={12} />
+                          <span className="nowrap">Rută Maps</span>
+                        </a>
+                        <button
+                          type="button"
+                          className="chip-button"
+                          style={{
+                            background: "var(--navy)",
+                            color: "var(--white)",
+                            borderColor: "var(--navy)",
+                          }}
                           onClick={() => addBookingToNativeCalendar(b, "pro")}
                         >
-                          În Calendar
-                        </Pressable>
-                      </span>
+                          <SvgIcon name="calendar" size={12} />
+                          <span className="nowrap">În Calendar</span>
+                        </button>
+                      </div>
                       <Pressable className="complete-job-button" onClick={() => onComplete(b)}>
                         Marchează ca finalizată
                       </Pressable>

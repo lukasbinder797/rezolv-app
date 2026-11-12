@@ -53,7 +53,9 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -62,6 +64,7 @@ body,
 #root {
   margin: 0;
   min-height: 100%;
+  max-width: 100vw;
   overflow-x: hidden;
 }
 
@@ -73,6 +76,12 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+.nowrap {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
 }
 
 img {
@@ -459,19 +468,90 @@ textarea:focus-visible,
 }
 
 /* ============================================================================
-   MAIN APP SHELL & CLIENT HOME
+   MAIN APP SHELL & MOBILE PHONE CONTAINER
    ============================================================================ */
 .app-shell {
   min-height: 100dvh;
   background: var(--bg);
   padding-bottom: 84px;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  position: relative;
 }
 
 .screen-content {
   min-height: calc(100dvh - 72px);
-  max-width: 960px;
+  max-width: 100%;
+  width: 100%;
   margin: 0 auto;
   padding: calc(20px + env(safe-area-inset-top)) 16px 40px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Desktop Preview Frame: Presents the app as a centered iPhone 15 frame on Render */
+@media (min-width: 640px) {
+  body {
+    background: #0b1329;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(16, 63, 111, 0.45) 0px, transparent 60%),
+      radial-gradient(at 100% 100%, rgba(30, 41, 59, 0.85) 0px, transparent 60%);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 0 40px;
+    min-height: 100vh;
+  }
+
+  #root {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .app-shell {
+    max-width: 430px;
+    width: 100%;
+    margin: 0 auto;
+    min-height: calc(100dvh - 48px);
+    border-radius: 46px;
+    box-shadow:
+      0 0 0 10px #1e293b,
+      0 0 0 12px #334155,
+      0 30px 70px -15px rgba(0, 0, 0, 0.75);
+    overflow-x: hidden;
+    position: relative;
+    background: var(--bg);
+  }
+
+  .app-shell .bottom-nav {
+    max-width: 430px;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    border-bottom-left-radius: 46px;
+    border-bottom-right-radius: 46px;
+  }
+
+  .app-shell .feedback-floating-btn {
+    position: absolute;
+    bottom: 84px;
+    right: 16px;
+  }
+
+  .app-shell .screen-content {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .app-shell .pro-dashboard {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    width: 100% !important;
+  }
 }
 
 .app-header {
@@ -560,6 +640,10 @@ textarea:focus-visible,
   margin-bottom: 12px;
   min-height: 24px;
   gap: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .section-heading > div {
@@ -568,6 +652,10 @@ textarea:focus-visible,
   font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .section-heading > span {
@@ -2357,6 +2445,11 @@ textarea:focus-visible,
   font-size: 11px;
   font-weight: 500;
   margin-left: 6px;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .aqua {
@@ -2510,26 +2603,38 @@ textarea:focus-visible,
   margin-top: 6px;
 }
 
+.schedule-chips-row,
 .schedule-actions {
-  color: var(--navy) !important;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  padding: 4px 10px;
   display: flex !important;
-  gap: 12px;
-  width: max-content;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  margin-top: 8px;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.schedule-chips-row > *,
+.schedule-actions > * {
+  white-space: nowrap !important;
+  box-sizing: border-box;
 }
 
 .complete-job-button {
-  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: 100%;
   margin-top: 8px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: var(--radius-xs);
   color: var(--white);
   background: var(--green);
   font-size: 12px;
   font-weight: 500;
+  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .add-service-card {
@@ -2928,46 +3033,121 @@ textarea:focus-visible,
   gap: 6px;
 }
 
-/* B2B Mobile Calendar Grid */
+/* ============================================================================
+   B2B MOBILE CALENDAR & SCHEDULE ARCHITECTURE
+   ============================================================================ */
+.cal-section-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.cal-section-header {
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.cal-header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.cal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cal-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.cal-badge-2click {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  color: var(--navy);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cal-header-sub {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 5-Day Selector Strip */
 .cal-day-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .cal-day-pill {
-  min-height: 56px;
+  min-height: 54px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-subtle);
-  padding: 8px 4px;
+  padding: 6px 2px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 2px;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .cal-day-pill strong {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .cal-day-pill small {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .cal-day-pill i {
   font-style: normal;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: var(--navy);
+  white-space: nowrap;
 }
 
 .cal-day-pill.active {
@@ -2981,11 +3161,327 @@ textarea:focus-visible,
   color: var(--white);
 }
 
+/* CRM Mode action buttons */
+.cal-crm-actions {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cal-sync-btn {
+  min-height: 42px;
+  font-size: 12px;
+  font-weight: 600;
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Hourly Slot Grid */
 .cal-slot-list {
   display: grid;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* Free / Past Slot Row */
+.cal-slot-free-row {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+  background: var(--surface-subtle);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.cal-slot-free-row.is-past {
+  opacity: 0.65;
+}
+
+.cal-slot-free-hour {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+  width: 46px;
+}
+
+.cal-slot-free-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-slot-free-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--navy);
+  flex-shrink: 0;
+  white-space: nowrap !important;
+}
+
+.cal-slot-free-row.is-past .cal-slot-free-badge {
+  color: var(--text-muted);
+}
+
+/* Booked Job Card Architecture */
+.cal-booking-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+
+.cal-booking-card.slot-accepted {
+  border-left: 4px solid var(--green);
+}
+
+.cal-booking-card.slot-estimated {
+  border-left: 4px solid var(--amber);
+}
+
+.cal-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.cal-card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.cal-card-hour {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.cal-card-duration {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.cal-card-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: var(--radius-xs);
+  white-space: nowrap !important;
+}
+
+.cal-card-status-badge.status-ok {
+  background: var(--soft-green);
+  color: var(--green);
+  border: 1px solid rgba(21, 128, 61, 0.2);
+}
+
+.cal-card-status-badge.status-est {
+  background: var(--soft-amber);
+  color: var(--amber);
+  border: 1px solid rgba(180, 83, 9, 0.2);
+}
+
+.cal-card-price {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cal-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.cal-card-service {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 18px;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.cal-card-client-line {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 16px;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.cal-card-client-line strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.cal-card-sep {
+  margin: 0 4px;
+  color: var(--text-muted);
+}
+
+.cal-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cal-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 2px 9px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap !important;
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.cal-chip-btn.cal-chip-cal {
+  background: var(--navy);
+  color: var(--white);
+  border-color: var(--navy);
+}
+
+.cal-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 2px;
+  border-top: 1px dashed var(--border);
+  width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+}
+
+.cal-footer-left-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cal-footer-btn-resched {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--navy);
+  white-space: nowrap !important;
+  box-sizing: border-box;
+}
+
+.cal-footer-btn-sms {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap !important;
+  box-sizing: border-box;
+}
+
+.cal-footer-right-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.cal-footer-btn-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--soft-green);
+  color: var(--green);
+  border: 1px solid rgba(21, 128, 61, 0.25);
+  white-space: nowrap !important;
+  box-sizing: border-box;
+}
+
+.cal-footer-btn-noshow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--soft-red);
+  color: var(--red);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  white-space: nowrap !important;
+  box-sizing: border-box;
+}
+
+/* Fallback for legacy .cal-slot-row */
 .cal-slot-row {
   min-height: 56px;
   border-radius: var(--radius-sm);
@@ -2996,20 +3492,9 @@ textarea:focus-visible,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-@media (max-width: 480px) {
-  .cal-slot-row {
-    flex-wrap: wrap;
-  }
-  .cal-slot-actions {
-    width: 100%;
-    flex-direction: row !important;
-    justify-content: space-between;
-    align-items: center !important;
-    padding-top: 8px;
-    border-top: 1px solid var(--border);
-  }
+  box-sizing: border-box;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 
 .cal-slot-row.slot-free {
@@ -3028,11 +3513,12 @@ textarea:focus-visible,
 }
 
 .cal-slot-hour {
-  min-width: 56px;
+  min-width: 50px;
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  flex-shrink: 0;
 }
 
 .sms-pill-row {
@@ -3040,6 +3526,7 @@ textarea:focus-visible,
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
+  width: 100%;
 }
 
 .sms-pill {
@@ -3054,12 +3541,19 @@ textarea:focus-visible,
   background: var(--surface-raised);
   color: var(--text-secondary);
   border: 1px solid var(--border);
+  white-space: nowrap !important;
 }
 
 .sms-pill.sent {
   background: var(--soft-green);
   color: var(--green);
   border-color: rgba(21, 128, 61, 0.2);
+}
+
+.sms-pill.pill-est {
+  background: var(--soft-amber);
+  color: var(--amber);
+  border-color: rgba(180, 83, 9, 0.2);
 }
 
 /* Client Estimate Offer Card — Technical Dispatch Sheet */
