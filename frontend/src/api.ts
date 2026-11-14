@@ -40,18 +40,68 @@ export type ApiService = {
   unit?: string
   duration: string
   est_duration_min?: number
+  instant_book?: boolean
+  deposit_ron?: number
   category: string
+}
+
+export type ApiPortfolioPhoto = {
+  id: string
+  title: string
+  category: string
+  before_caption: string
+  after_caption: string
+  before_url: string
+  after_url: string
+  ago: string
+}
+
+export type ApiExternalReview = {
+  id: string
+  author: string
+  rating: number
+  comment: string
+  source_label: string
+  verified: boolean
+  ago: string
+}
+
+export type ApiProSlot = {
+  start_at: number
+  end_at: number
+  day_name: string
+  date_short: string
+  hour: string
+  label: string
+}
+
+export type ApiProReview = {
+  rating: number
+  comment: string
+  author: string
+  ago?: string
+  relative_time?: string
 }
 
 export type ApiPro = {
   id: string
+  slug?: string | null
   name: string
   initials: string
   company_name?: string
   cui?: string
+  caen_code?: string
+  caen_label?: string
+  instant_book_enabled?: boolean
+  cui_verified?: boolean
+  verified?: boolean
   city?: string
   zones?: string[]
+  hours?: Record<string, string>
   rating: string
+  rating_value?: number
+  rating_avg?: number
+  rating_count?: number
   reviews: number
   jobs: number
   distance: string
@@ -61,6 +111,10 @@ export type ApiPro = {
   promoted: boolean
   headline: string | null
   bio?: string
+  categories?: string[]
+  recent_reviews?: ApiProReview[]
+  portfolio_photos?: ApiPortfolioPhoto[]
+  external_reviews?: ApiExternalReview[]
   services: ApiService[]
 }
 
@@ -112,6 +166,11 @@ export type ApiBooking = {
   scheduled_for: string | null
   scheduled_start_at?: number | null
   scheduled_end_at?: number | null
+  is_instant_book?: boolean
+  on_my_way_at?: number | null
+  eta_minutes?: number | null
+  deposit_paid_ron?: number
+  cascaded_from_booking_id?: string | null
   ago: string
   time_label: string
   client: { id: string; name: string; neighborhood?: string; address: string | null; phone?: string | null; email?: string | null }
@@ -146,6 +205,33 @@ export type ApiQuickSlot = {
   start_at: number
   label: string
   full_label: string
+}
+
+export type ApiProDashboard = {
+  rating_avg: number
+  rating_count: number
+  response_speed: string
+  active_leads_count?: number
+  revenue_month?: number
+  week: {
+    revenue: number
+    jobs: number
+    change_pct: number | null
+  }
+  plan: {
+    plan: string
+    status: string
+    price_eur?: number
+    renews_in_days: number | null
+  }
+  pending: (ApiBooking & { photos?: string[] })[]
+  schedule: ApiBooking[]
+  calendar?: {
+    days: ApiCalendarDay[]
+    quick_free_slots: ApiQuickSlot[]
+  }
+  verification_status: string
+  unread_notifications: number
 }
 
 export class ApiFailure extends Error {
@@ -291,6 +377,11 @@ export const api = {
       `/api/professionals?category=${q(category)}${zone ? `&zone=${q(zone)}` : ""}`,
     ),
   professional: (id: string) => request<{ professional: ApiPro }>("GET", `/api/professionals/${id}`),
+  professionalSlots: (id: string) =>
+    request<{ pro_id: string; slug?: string | null; instant_book_eligible: boolean; slots: ApiProSlot[] }>(
+      "GET",
+      `/api/professionals/${id}/slots`,
+    ),
   aiRecommend: (problem: string, photos?: string[]) =>
     request<{
       category: string
@@ -315,7 +406,25 @@ export const api = {
     urgency_level?: "normal" | "urgent_today"
     preferred_window?: string
     scheduled_for?: string
+    instant_book?: boolean
+    slot_start_at?: number
   }) => request<{ booking: ApiBooking }>("POST", "/api/bookings", data),
+  cascadeBooking: (id: string) =>
+    request<{ original_booking_id: string; cascaded_count: number; cascaded_bookings: ApiBooking[]; message: string }>(
+      "POST",
+      `/api/bookings/${id}/cascade`,
+      {},
+    ),
+  onMyWay: (id: string, eta_minutes = 20, channel: "whatsapp" | "sms" = "whatsapp") =>
+    request<{ booking: ApiBooking; dispatch: any; message: string }>("POST", `/api/bookings/${id}/on-my-way`, {
+      eta_minutes,
+      channel,
+    }),
+  payDeposit: (id: string, amount_ron = 50, card?: Record<string, unknown>) =>
+    request<{ deposit: any; booking: ApiBooking; message: string }>("POST", `/api/bookings/${id}/deposit`, {
+      amount_ron,
+      ...(card ? { card } : {}),
+    }),
 
   quote: (id: string, price: number, duration: string, extra?: Record<string, unknown>) =>
     request<{ booking: ApiBooking }>("POST", `/api/bookings/${id}/quote`, { price, duration, ...extra }),
@@ -350,7 +459,8 @@ export const api = {
   review: (id: string, rating: number, comment: string) =>
     request<{ booking: ApiBooking }>("POST", `/api/bookings/${id}/review`, { rating, comment }),
 
-  dashboard: () => request<any>("GET", "/api/pro/dashboard"),
+  dashboard: () => request<ApiProDashboard>("GET", "/api/pro/dashboard"),
+  proDashboard: () => request<ApiProDashboard>("GET", "/api/pro/dashboard"),
   proCalendar: () => request<{ days: ApiCalendarDay[]; quick_free_slots: ApiQuickSlot[] }>("GET", "/api/pro/calendar"),
   createManualProBooking: (data: {
     client_name: string
@@ -371,6 +481,30 @@ export const api = {
   updateProProfile: (data: Record<string, unknown>) => request<{ user: ApiUser }>("PATCH", "/api/pro/profile", data),
   submitVerification: (company_name: string, cui: string) =>
     request<{ user: ApiUser }>("POST", "/api/pro/verification", { company_name, cui }),
+  proPortfolio: () => request<{ portfolio: ApiPortfolioPhoto[] }>("GET", "/api/pro/portfolio"),
+  addProPortfolio: (data: {
+    title: string
+    category?: string
+    before_caption?: string
+    after_caption?: string
+    before_url: string
+    after_url: string
+  }) => request<{ portfolio: ApiPortfolioPhoto[] }>("POST", "/api/pro/portfolio", data),
+  deleteProPortfolio: (id: string) =>
+    request<{ portfolio: ApiPortfolioPhoto[] }>("DELETE", `/api/pro/portfolio/${id}`),
+  addExternalReview: (data: {
+    author_name: string
+    client_phone?: string
+    rating: number
+    comment: string
+    source_label?: string
+  }) => request<{ professional: ApiPro }>("POST", "/api/pro/external-reviews", data),
+  web2AppSession: (data: { kind?: "subscription" | "deposit"; plan?: "essential" | "pro"; booking_id?: string; amount_ron?: number }) =>
+    request<{ session_id: string; web2app_url: string; amount_ron: number; zero_apple_commission: boolean }>(
+      "POST",
+      "/api/subscription/web2app-session",
+      data,
+    ),
   subscription: () => request<any>("GET", "/api/subscription"),
   checkout: (plan: string) => request<any>("POST", "/api/subscription/checkout", { plan }),
   getInvoiceXml: (paymentId: string) =>

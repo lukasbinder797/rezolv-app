@@ -107,26 +107,26 @@ SIBIU_ZONES = [
 ]
 HOURS = {"Luni–Vineri": "08:00–18:00", "Sâmbătă": "09:00–14:00", "Duminică": "Închis"}
 
-# email, name, company, cui body, rating, reviews, jobs, km, availability, years, plan, categories
+# email, name, company, cui body, rating, reviews, jobs, km, availability, years, plan, categories, slug
 PROS = [
     ("mester@rezolv.ro", "Binder Lukas", "BINDER INSTAL SIBIU S.R.L.", "4123984", 4.9, 41, 63, 1.6,
-     "Disponibil astăzi", 9, "essential", ["Instalații Sanitare", "Climatizare & Termice"]),
+     "Disponibil astăzi", 9, "essential", ["Instalații Sanitare", "Climatizare & Termice"], "binder-lukas-instalator"),
     ("marian@rezolv.ro", "Marian Popescu", "SIBIU TERMO SERV S.R.L.", "3918225", 4.9, 127, 214,
-     1.8, "Disponibil astăzi", 8, "pro", ["Instalații Sanitare", "Climatizare & Termice", "Lăcătuș"]),
+     1.8, "Disponibil astăzi", 8, "pro", ["Instalații Sanitare", "Climatizare & Termice", "Lăcătuș"], "marian-popescu-instalator"),
     ("andrei@rezolv.ro", "Andrei Munteanu", "TRANSILVANIA ELECTRO S.R.L.", "4417766", 4.8, 89, 156, 2.4,
-     "Disponibil în 2 ore", 6, "essential", ["Instalații Sanitare", "Instalații Electrice", "Reparații Electrocasnice"]),
+     "Disponibil în 2 ore", 6, "essential", ["Instalații Sanitare", "Instalații Electrice", "Reparații Electrocasnice"], "andrei-munteanu-electrician"),
     ("radu@rezolv.ro", "Radu Petrescu", "CIBIN INSTALAȚII S.R.L.", "3604519", 4.7, 64, 118, 3.1,
-     "Disponibil mâine", 10, "essential", ["Instalații Sanitare", "Instalații Electrice", "Montaj Mobilă", "Zugrăveli & Finisaje"]),
+     "Disponibil mâine", 10, "essential", ["Instalații Sanitare", "Instalații Electrice", "Montaj Mobilă", "Zugrăveli & Finisaje"], "radu-petrescu-instalatii"),
     ("ionut@rezolv.ro", "Ionuț Dragomir", "HERMANNSTADT AUTO GARAGE S.R.L.", "4290177", 4.9, 73, 190, 2.9,
-     "Disponibil astăzi", 12, "pro", ["Mecanică Auto", "Vulcanizare Mobilă"]),
+     "Disponibil astăzi", 12, "pro", ["Mecanică Auto", "Vulcanizare Mobilă"], "ionut-dragomir-mecanic"),
     ("catalin@rezolv.ro", "Cătălin Stoica", "AUTO MOBIL ȘELIMBĂR S.R.L.", "3815203", 4.6, 38, 77, 4.2,
-     "Disponibil mâine", 7, "essential", ["Mecanică Auto", "Vulcanizare Mobilă", "Acoperișuri & Exterioare"]),
+     "Disponibil mâine", 7, "essential", ["Mecanică Auto", "Vulcanizare Mobilă", "Acoperișuri & Exterioare"], "catalin-stoica-vulcanizare"),
     ("sorin@rezolv.ro", "Sorin Toma", "TOMA FINISAJE SIBIU S.R.L.", "4501238", 4.8, 52, 101, 2.7,
-     "Disponibil în 2 zile", 11, "essential", ["Zugrăveli & Finisaje", "Zidărie & Faianțare", "Montaj Mobilă", "Acoperișuri & Exterioare", "Curățenie"]),
+     "Disponibil în 2 zile", 11, "essential", ["Zugrăveli & Finisaje", "Zidărie & Faianțare", "Montaj Mobilă", "Acoperișuri & Exterioare", "Curățenie"], "sorin-toma-finisaje"),
     ("mirela@rezolv.ro", "Mirela Ene", "SIBIU PRO CLEAN S.R.L.", "4377012", 4.9, 95, 240, 2.1,
-     "Disponibil astăzi", 5, "pro", ["Curățenie", "Reparații Electrocasnice"]),
+     "Disponibil astăzi", 5, "pro", ["Curățenie", "Reparații Electrocasnice"], "mirela-ene-curatenie"),
     ("vlad@rezolv.ro", "Vlad Lăcătușu", "SIBIU LOCK & SAFE S.R.L.", "4112893", 4.7, 46, 88, 1.9,
-     "Disponibil în 2 ore", 9, "essential", ["Lăcătuș", "Zidărie & Faianțare"]),
+     "Disponibil în 2 ore", 9, "essential", ["Lăcătuș", "Zidărie & Faianțare"], "vlad-lacatusu-lacatus"),
 ]
 
 CLIENTS = [
@@ -168,18 +168,20 @@ def seed(conn):
     clients = {c[0]: add_user(c[0], "client", c[1], c[2], c[3], c[4]) for c in CLIENTS}
 
     pro_ids = {}
-    for idx, (email, name, company, body, rating, reviews, jobs, km, avail, years, plan, cats) in enumerate(PROS):
+    for idx, (email, name, company, body, rating, reviews, jobs, km, avail, years, plan, cats, slug) in enumerate(PROS):
         cui = ver.make_cui(body)
         zones_slice = SIBIU_ZONES[:5] if idx % 2 == 0 else SIBIU_ZONES[1:6]
         uid = add_user(email, "pro", name, "+40 740 555 0" + body[-2:], zones_slice[0], f"{zones_slice[0]}, Sibiu")
         ver.register(cui, company, True, f"{zones_slice[0]}, Mun. Sibiu", cats[0])
+        caen_code = ver.get_caen_info(cats[0])["caen_code"]
         conn.execute(
-            "INSERT INTO pro_profiles (user_id,company_name,cui,headline,bio,experience_years,city,zones_json,"
+            "INSERT INTO pro_profiles (user_id,slug,company_name,cui,headline,bio,experience_years,city,zones_json,"
             "hours_json,slot_step_minutes,verification_status,verified_at,onboarded_by_admin,rating_avg,rating_count,"
-            "jobs_completed,availability,distance_km,plan,plan_status,subscription_price_eur,plan_renews_at) "
-            "VALUES (?,?,?,?,?,?,'Sibiu',?,?,30,'verified',?,1,?,?,?,?,?,?, 'active', 39, ?)",
+            "jobs_completed,availability,distance_km,plan,plan_status,subscription_price_eur,plan_renews_at,caen_code) "
+            "VALUES (?,?,?,?,?,?,?,'Sibiu',?,?,30,'verified',?,1,?,?,?,?,?,?,'active',?,?,?)",
             (
                 uid,
+                slug,
                 company,
                 "RO" + cui,
                 " & ".join(c.split(" &")[0] for c in cats[:2]),
@@ -195,16 +197,53 @@ def seed(conn):
                 avail,
                 km,
                 plan,
+                10 if plan == "essential" else 39,
                 t + (12 if email == "mester@rezolv.ro" else 24) * DAY,
+                caen_code,
             ),
         )
         for cat in cats:
-            for (sname, price, unit, dur, est_min) in CATALOG[cat]:
+            for s_idx, (sname, price, unit, dur, est_min) in enumerate(CATALOG[cat]):
+                is_instant = 1 if (s_idx == 0 and unit == "RON" and rating >= 4.5) else 0
+                dep_ron = 50 if is_instant else 0
                 conn.execute(
-                    "INSERT INTO pro_services (id,pro_id,category,name,price_from,price_unit,duration,est_duration_min,active)"
-                    " VALUES (?,?,?,?,?,?,?,?,1)",
-                    (new_id("s_"), uid, cat, sname, price, unit, dur, est_min),
+                    "INSERT INTO pro_services (id,pro_id,category,name,price_from,price_unit,duration,est_duration_min,instant_book,deposit_ron,active)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,1)",
+                    (new_id("s_"), uid, cat, sname, price, unit, dur, est_min, is_instant, dep_ron),
                 )
+        # Seed Before/After portfolio entry for each pro (Wave 2.2)
+        first_cat = cats[0]
+        first_srv_name = CATALOG[first_cat][0][0]
+        conn.execute(
+            "INSERT INTO pro_portfolio_photos (id,pro_id,title,category,before_caption,after_caption,before_url,after_url,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                new_id("pf_"),
+                uid,
+                f"{first_srv_name} — {zones_slice[0]}, Sibiu",
+                first_cat,
+                "Înainte: defecțiune și uzură la sosire",
+                "După: montaj curat, verificat și cu garanție",
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                t - 10 * DAY,
+            ),
+        )
+        # Seed verified external review for each pro (Wave 2.2)
+        conn.execute(
+            "INSERT INTO external_reviews (id,pro_id,author_name,client_phone,rating,comment,source_label,verified,created_at) "
+            "VALUES (?,?,?,?,?,?,?,1,?)",
+            (
+                new_id("ext_"),
+                uid,
+                "Cristian M. (Șelimbăr)",
+                "+40744111222",
+                5,
+                f"Lucrare impecabilă realizată de {name} ({company}). Punctual și tarif transparent.",
+                "Client verificat telefonic (Import Istoric)",
+                t - 15 * DAY,
+            ),
+        )
         pro_ids[email] = uid
 
     binder = pro_ids["mester@rezolv.ro"]

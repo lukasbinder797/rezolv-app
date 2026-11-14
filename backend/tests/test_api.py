@@ -140,6 +140,32 @@ class TestCatalog(Api):
     def test_unknown_professional_404(self):
         self.assertEqual(self.call("GET", "/api/professionals/nope")[0], 404)
 
+    def test_get_professional_by_id_and_slug(self):
+        # List returns slug
+        s, p = self.call("GET", "/api/professionals?category=Instala%C8%9Bii%20Sanitare")
+        self.assertEqual(s, 200)
+        self.assertTrue(len(p["professionals"]) > 0)
+        pro = p["professionals"][0]
+        pro_id = pro["id"]
+        slug = pro.get("slug")
+        self.assertTrue(bool(slug))
+
+        # Lookup by UUID returns professional with slug
+        s_id, res_id = self.call("GET", f"/api/professionals/{pro_id}")
+        self.assertEqual(s_id, 200)
+        self.assertEqual(res_id["professional"]["id"], pro_id)
+        self.assertEqual(res_id["professional"]["slug"], slug)
+
+        # Lookup by canonical slug returns identical pro
+        s_slug, res_slug = self.call("GET", f"/api/professionals/{slug}")
+        self.assertEqual(s_slug, 200)
+        self.assertEqual(res_slug["professional"]["id"], pro_id)
+
+        # Case-insensitivity check
+        s_upper, res_upper = self.call("GET", f"/api/professionals/{slug.upper()}")
+        self.assertEqual(s_upper, 200)
+        self.assertEqual(res_upper["professional"]["id"], pro_id)
+
 
 class TestBookingFlow(Api):
     def _service(self):

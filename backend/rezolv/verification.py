@@ -17,6 +17,50 @@ KEY = "753217532"
 # Numeric CUI -> company metadata
 REGISTRY = {}
 
+# Official Romanian CAEN Rev.2 mapping per REZOLV category (Wave 2.2)
+CAEN_BY_CATEGORY = {
+    "Instalații Sanitare": ("4322", "Lucrări de instalații sanitare, de încălzire și de aer condiționat"),
+    "Climatizare & Termice": ("4322", "Lucrări de instalații sanitare, de încălzire și de aer condiționat"),
+    "Instalații Electrice": ("4321", "Lucrări de instalații electrice (autorizat ANRE)"),
+    "Reparații Electrocasnice": ("9522", "Repararea dispozitivelor de uz gospodăresc și a echipamentelor pentru casă"),
+    "Mecanică Auto": ("4520", "Întreținerea și repararea autovehiculelor"),
+    "Vulcanizare Mobilă": ("4520", "Întreținerea și repararea autovehiculelor (Asistență & Vulcanizare)"),
+    "Zugrăveli & Finisaje": ("4334", "Lucrări de vopsitorie, zugrăveli și montări de geamuri"),
+    "Zidărie & Faianțare": ("4333", "Lucrări de pardosire și placare a pereților"),
+    "Montaj Mobilă": ("4332", "Lucrări de tâmplărie și dulgherie / montaj mobilier"),
+    "Lăcătuș": ("4329", "Alte lucrări de instalații pentru construcții și sisteme de închidere"),
+    "Acoperișuri & Exterioare": ("4391", "Lucrări de învelitori, șarpante și terase la construcții"),
+    "Curățenie": ("8121", "Activități generale de curățenie a clădirilor"),
+}
+
+
+def get_caen_info(category: str | None, explicit_code: str | None = None) -> dict:
+    """Return canonical CAEN code and description for a category or explicit code."""
+    default_code, default_label = CAEN_BY_CATEGORY.get(
+        category or "Instalații Sanitare",
+        ("4322", "Lucrări de instalații sanitare, de încălzire și de aer condiționat"),
+    )
+    code = (explicit_code or default_code).strip()
+    label = default_label
+    for _, (c_code, c_lbl) in CAEN_BY_CATEGORY.items():
+        if c_code == code:
+            label = c_lbl
+            break
+    return {"caen_code": code, "caen_label": f"CAEN {code} — {label}"}
+
+
+def validate_caen_for_category(caen_code: str | None, category: str | None) -> bool:
+    """Check if a 4-digit CAEN code is valid and matches the category domain."""
+    if not caen_code:
+        return False
+    clean = re.sub(r"\D", "", str(caen_code))
+    if len(clean) != 4:
+        return False
+    if not category or category not in CAEN_BY_CATEGORY:
+        return True
+    expected_code = CAEN_BY_CATEGORY[category][0]
+    return clean == expected_code or clean[:2] in ("43", "45", "81", "95")
+
 
 def normalize_cui(raw: str) -> str:
     return re.sub(r"\D", "", re.sub(r"^\s*RO", "", (raw or "").upper()))

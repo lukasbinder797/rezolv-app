@@ -116,6 +116,11 @@ class TestDomainHelpersUnit(unittest.TestCase):
         self.assertEqual(services.duration_label_of(45), "45 min")
         self.assertEqual(services.duration_label_of(60), "1 oră")
         self.assertEqual(services.duration_label_of(90), "1.5 ore")
+        self.assertEqual(services.format_response_speed(None), "~15 min")
+        self.assertEqual(services.format_response_speed(-5), "~15 min")
+        self.assertEqual(services.format_response_speed(720), "12 min")
+        self.assertEqual(services.format_response_speed(3600), "1 oră")
+        self.assertEqual(services.format_response_speed(5400), "1.5 ore")
 
     def test_cui_checksum_and_luhn_validation(self):
         for body in ("4561230", "3918225", "4290177"):

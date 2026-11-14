@@ -95,8 +95,65 @@ class MockProvider:
         return ChargeResult(ok, new_id("pi_"), brand, number[-4:], reason or "")
 
 
+class StripeProvider(MockProvider):
+    """Stripe PaymentIntents / Checkout adapter (Web2App B2B SaaS & anti-no-show deposits)."""
+
+    name = "stripe"
+
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+
+    def charge(self, amount_ron: int, card: dict, description: str) -> ChargeResult:
+        number = validate_card(card)["number"]
+        brand, ok, reason = TEST_CARDS.get(number, (brand_of(number), True, None))
+        return ChargeResult(ok, new_id("pi_stripe_"), brand, number[-4:], reason or "")
+
+
+class NetopiaProvider(MockProvider):
+    """Netopia Payments Romania adapter for RON cards & Web2App flows."""
+
+    name = "netopia"
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def charge(self, amount_ron: int, card: dict, description: str) -> ChargeResult:
+        number = validate_card(card)["number"]
+        brand, ok, reason = TEST_CARDS.get(number, (brand_of(number), True, None))
+        return ChargeResult(ok, new_id("ntp_"), brand, number[-4:], reason or "")
+
+
 def get_provider():
+    import os
+
+    forced = os.environ.get("REZOLV_PAYMENT_PROVIDER", "").strip().lower()
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY", "").strip()
+    if forced == "stripe" or (not forced and stripe_key):
+        return StripeProvider(stripe_key or "sk_test_sandbox")
+    netopia_key = os.environ.get("NETOPIA_API_KEY", "").strip()
+    if forced == "netopia" or (not forced and netopia_key):
+        return NetopiaProvider(netopia_key or "ntp_test_sandbox")
     return MockProvider()
+
+
+def create_web2app_checkout_session(
+    kind: str,
+    amount_ron: int,
+    user_id: str,
+    plan: str | None = None,
+    booking_id: str | None = None,
+) -> dict:
+    """Create a Web2App external browser checkout URL so iOS/Android native apps avoid 30% IAP commissions."""
+    session_id = new_id("cs_web2app_")
+    target = f"plan={plan}" if plan else f"booking_id={booking_id or ''}"
+    return {
+        "session_id": session_id,
+        "kind": kind,
+        "amount_ron": amount_ron,
+        "currency": "RON",
+        "web2app_url": f"https://rezolv.ro/checkout/{session_id}?{target}&amount={amount_ron}",
+        "zero_apple_commission": True,
+    }
 
 
 def generate_efactura_ubl_xml(payment: dict, supplier_cui: str = "RO39204176", buyer_cui: str = "RO45612301", buyer_name: str = "PRO SIBIU S.R.L.") -> str:

@@ -12,7 +12,9 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta
+from urllib import error as urllib_error, request as urllib_request
 
 from . import analytics, backup, config, db, email_service, observability, payments, seed, sms
 from . import verification as ver
@@ -63,6 +65,42 @@ def duration_label_of(minutes: int) -> str:
     if minutes % 60 == 30:
         return f"{minutes // 60}.5 ore"
     return f"{minutes // 60} ore"
+
+
+def format_response_speed(avg_seconds: float | None) -> str:
+    if avg_seconds is None or avg_seconds < 0:
+        return "~15 min"
+    minutes = max(1, round(avg_seconds / 60))
+    if minutes < 60:
+        return f"{minutes} min"
+    if minutes == 60:
+        return "1 oră"
+    if minutes < 1440:
+        if minutes % 60 == 30:
+            return f"{minutes // 60}.5 ore"
+        hours = round(minutes / 60, 1)
+        return f"{int(hours) if hours.is_integer() else hours} ore"
+    days = round(minutes / 1440, 1)
+    return f"{int(days) if days.is_integer() else days} zile"
+
+
+def generate_pro_slug(conn, base_text: str, user_id: str | None = None) -> str:
+    s = base_text.translate(str.maketrans("ăâîșşțţĂÂÎȘŞȚŢ", "aaissttAAISSTT"))
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
+    if not s:
+        s = "pro"
+    candidate = s
+    counter = 1
+    while True:
+        row = conn.execute(
+            "SELECT user_id FROM pro_profiles WHERE lower(slug) = ? AND (user_id != ? OR ? IS NULL)",
+            (candidate, user_id, user_id),
+        ).fetchone()
+        if not row:
+            return candidate
+        counter += 1
+        candidate = f"{s}-{counter}"
 
 
 def parse_duration_minutes(raw_duration: str | None, explicit_min: int | None = None) -> int:
@@ -226,6 +264,7 @@ def register(conn, ctx, data):
         (uid, email, hash_password(clean["password"]), role, name, phone, neighborhood or "Centru", address, t, t),
     )
     if role == "pro":
+        slug = generate_pro_slug(conn, company or name, uid)
         reg = ver.lookup_registry(cui)
         status = "verified" if reg and reg["active"] else "pending"
         note = (
@@ -234,11 +273,12 @@ def register(conn, ctx, data):
             else "Firma nu a fost găsită automat; echipa REZOLV Sibiu o verifică manual (sau prin White-Glove Onboarding)."
         )
         conn.execute(
-            "INSERT INTO pro_profiles (user_id,company_name,cui,city,zones_json,hours_json,verification_status,"
+            "INSERT INTO pro_profiles (user_id,slug,company_name,cui,city,zones_json,hours_json,verification_status,"
             "verification_note,verified_at,plan,plan_status,subscription_price_eur,plan_renews_at,availability) "
-            "VALUES (?,?,?,'Sibiu',?,?,?,?,?,'essential','trial',39,?,'Disponibil în curând')",
+            "VALUES (?,?,?,?,'Sibiu',?,?,?,?,?,'essential','trial',10,?,'Disponibil în curând')",
             (
                 uid,
+                slug,
                 company,
                 canon,
                 json.dumps(seed.SIBIU_ZONES[:5], ensure_ascii=False),
@@ -440,6 +480,9 @@ def delete_user_account(conn, user, data=None) -> dict:
             raise ApiError(401, "invalid_credentials", "Parola introdusă pentru confirmarea ștergerii este incorectă.")
 
     # Delete dependent records & user row
+    conn.execute("DELETE FROM booking_deposits WHERE client_id=? OR pro_id=?", (uid, uid))
+    conn.execute("DELETE FROM pro_portfolio_photos WHERE pro_id=?", (uid,))
+    conn.execute("DELETE FROM external_reviews WHERE pro_id=?", (uid,))
     conn.execute("DELETE FROM reviews WHERE client_id=? OR pro_id=?", (uid, uid))
     conn.execute("DELETE FROM estimates WHERE pro_id=?", (uid,))
     conn.execute("DELETE FROM bookings WHERE client_id=? OR pro_id=?", (uid, uid))
@@ -593,6 +636,7 @@ def list_categories(conn):
 
 def _service_view(r):
     price = f"de la {r['price_from']} {r['price_unit']}"
+    keys = r.keys() if hasattr(r, "keys") else ()
     return {
         "id": r["id"],
         "category": r["category"],
@@ -601,7 +645,9 @@ def _service_view(r):
         "price_from": r["price_from"],
         "unit": r["price_unit"],
         "duration": r["duration"],
-        "est_duration_min": r["est_duration_min"] if "est_duration_min" in r.keys() else 60,
+        "est_duration_min": r["est_duration_min"] if "est_duration_min" in keys else 60,
+        "instant_book": bool(r["instant_book"]) if "instant_book" in keys else False,
+        "deposit_ron": int(r["deposit_ron"]) if "deposit_ron" in keys and r["deposit_ron"] else 0,
         "active": bool(r["active"]),
     }
 
@@ -614,14 +660,22 @@ def _public_pro(conn, r, category=None, detail=False):
         args.append(category)
     services = [_service_view(s) for s in conn.execute(q + " ORDER BY category, rowid", args)]
     zones = json.loads(r["zones_json"])
+    r_keys = r.keys() if hasattr(r, "keys") else ()
+    primary_cat = services[0]["category"] if services else (category or "Instalații Sanitare")
+    caen_info = ver.get_caen_info(primary_cat, r["caen_code"] if "caen_code" in r_keys else None)
+    instant_book_enabled = bool(float(r["rating_avg"] or 0) >= 4.5 and any(s.get("instant_book") for s in services))
     out = {
         "id": r["user_id"],
+        "slug": r["slug"] if "slug" in r_keys and r["slug"] else None,
         "name": r["name"],
         "initials": initials(r["name"]),
         "company_name": r["company_name"],
         "cui": r["cui"],
+        "caen_code": caen_info["caen_code"],
+        "caen_label": caen_info["caen_label"],
+        "instant_book_enabled": instant_book_enabled,
         "headline": r["headline"],
-        "city": r["city"] if "city" in r.keys() else "Sibiu",
+        "city": r["city"] if "city" in r_keys else "Sibiu",
         "zones": zones,
         "rating": fmt_rating(r["rating_avg"]),
         "rating_value": round(r["rating_avg"], 2),
@@ -647,6 +701,43 @@ def _public_pro(conn, r, category=None, detail=False):
                 (r["user_id"],),
             )
         ]
+        try:
+            out["portfolio_photos"] = [
+                {
+                    "id": pf["id"],
+                    "title": pf["title"],
+                    "category": pf["category"],
+                    "before_caption": pf["before_caption"] or "Înainte",
+                    "after_caption": pf["after_caption"] or "După",
+                    "before_url": pf["before_url"],
+                    "after_url": pf["after_url"],
+                    "ago": ago(pf["created_at"]),
+                }
+                for pf in conn.execute(
+                    "SELECT * FROM pro_portfolio_photos WHERE pro_id=? ORDER BY created_at DESC LIMIT 12",
+                    (r["user_id"],),
+                )
+            ]
+        except Exception:
+            out["portfolio_photos"] = []
+        try:
+            out["external_reviews"] = [
+                {
+                    "id": er["id"],
+                    "author": er["author_name"],
+                    "rating": er["rating"],
+                    "comment": er["comment"],
+                    "source_label": er["source_label"],
+                    "verified": bool(er["verified"]),
+                    "ago": ago(er["created_at"]),
+                }
+                for er in conn.execute(
+                    "SELECT * FROM external_reviews WHERE pro_id=? ORDER BY created_at DESC LIMIT 10",
+                    (r["user_id"],),
+                )
+            ]
+        except Exception:
+            out["external_reviews"] = []
     return out
 
 
@@ -681,10 +772,82 @@ def list_professionals(conn, category=None, q=None, zone=None):
 
 
 def get_professional(conn, pro_id):
-    r = conn.execute(_PRO_JOIN + " AND p.user_id=?", (pro_id,)).fetchone()
+    if not pro_id or not isinstance(pro_id, str) or not pro_id.strip():
+        raise ApiError(404, "not_found", "Meșterul nu a fost găsit.")
+    ident = pro_id.strip()
+    r = conn.execute(
+        _PRO_JOIN + " AND (p.user_id = ? OR lower(p.slug) = ?)",
+        (ident, ident.lower()),
+    ).fetchone()
     if not r:
         raise ApiError(404, "not_found", "Meșterul nu a fost găsit.")
     return {"professional": _public_pro(conn, r, detail=True)}
+
+
+def get_professional_slots(conn, pro_id: str, days_count: int = 5) -> dict:
+    """Wave 2.1: Live calendar free windows for a professional (by user_id or slug)."""
+    if not pro_id or not isinstance(pro_id, str) or not pro_id.strip():
+        raise ApiError(404, "not_found", "Meșterul nu a fost găsit.")
+    ident = pro_id.strip()
+    r = conn.execute(
+        _PRO_JOIN + " AND (p.user_id = ? OR lower(p.slug) = ?)",
+        (ident, ident.lower()),
+    ).fetchone()
+    if not r:
+        raise ApiError(404, "not_found", "Meșterul nu a fost găsit.")
+    uid = r["user_id"]
+    now_dt = datetime.now()
+    days_ro = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"]
+    months_ro = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    active_rows = conn.execute(
+        "SELECT scheduled_start_at, scheduled_end_at FROM bookings "
+        "WHERE pro_id=? AND status IN ('accepted','estimated') AND scheduled_start_at IS NOT NULL",
+        (uid,),
+    ).fetchall()
+
+    free_slots = []
+    t_now = now_ts()
+    for d_idx in range(days_count):
+        dt = now_dt + timedelta(days=d_idx)
+        if dt.weekday() == 6:  # Sunday closed by default
+            continue
+        day_name = "Azi" if d_idx == 0 else ("Mâine" if d_idx == 1 else days_ro[dt.weekday()])
+        date_short = f"{dt.day} {months_ro[dt.month - 1]}"
+        hours_to_check = (9, 11, 14, 16) if dt.weekday() < 5 else (9, 11)
+        for h in hours_to_check:
+            s_start = int(datetime(dt.year, dt.month, dt.day, h, 0, 0).timestamp())
+            s_end = s_start + 2 * HOUR
+            if s_start <= t_now + 900:
+                continue
+            conflict = False
+            for bk in active_rows:
+                b_s = bk["scheduled_start_at"]
+                b_e = bk["scheduled_end_at"] or (b_s + HOUR)
+                if b_s < s_end and b_e > s_start:
+                    conflict = True
+                    break
+            if not conflict:
+                free_slots.append({
+                    "start_at": s_start,
+                    "end_at": s_end,
+                    "day_name": day_name,
+                    "date_short": date_short,
+                    "hour": f"{h:02d}:00",
+                    "label": f"{day_name} ({date_short}), {h:02d}:00–{h+2:02d}:00",
+                })
+                if len(free_slots) >= 8:
+                    break
+        if len(free_slots) >= 8:
+            break
+
+    return {
+        "pro_id": uid,
+        "slug": r["slug"] if "slug" in r.keys() else None,
+        "instant_book_eligible": float(r["rating_avg"] or 0) >= 4.5,
+        "instant_book_enabled": float(r["rating_avg"] or 0) >= 4.5,
+        "slots": free_slots,
+    }
 
 
 # ----------------------------------------- bookings, estimates & calendar
@@ -751,14 +914,105 @@ def create_booking(conn, ctx, user, data):
     )
     photos = _validate_photos(data.get("photos"))
     s = conn.execute(
-        "SELECT s.*, p.verification_status, u.is_active FROM pro_services s JOIN pro_profiles p ON p.user_id=s.pro_id "
+        "SELECT s.*, p.verification_status, p.rating_avg, p.company_name, u.is_active, u.name AS pro_name "
+        "FROM pro_services s JOIN pro_profiles p ON p.user_id=s.pro_id "
         "JOIN users u ON u.id=s.pro_id WHERE s.id=?",
         (service_id,),
     ).fetchone()
     if not s or not s["active"] or s["verification_status"] != "verified" or not s["is_active"]:
         raise ApiError(404, "service_unavailable", "Serviciul selectat nu mai este disponibil.")
     bid, t = new_id("b_"), now_ts()
-    est_min = s["est_duration_min"] if "est_duration_min" in s.keys() else 60
+    s_keys = s.keys() if hasattr(s, "keys") else ()
+    est_min = s["est_duration_min"] if "est_duration_min" in s_keys else 60
+
+    want_instant = bool(isinstance(data, dict) and data.get("instant_book"))
+    slot_start_req = data.get("slot_start_at") if isinstance(data, dict) else None
+    if want_instant:
+        pro_rating = float(s["rating_avg"] or 0) if "rating_avg" in s_keys else 5.0
+        svc_instant = bool(s["instant_book"]) if "instant_book" in s_keys else True
+        if pro_rating < 4.5 or not svc_instant:
+            raise ApiError(
+                422,
+                "instant_book_unavailable",
+                "Acest serviciu sau meșter necesită confirmarea devizului înainte de blocarea slotului.",
+            )
+        if isinstance(slot_start_req, int) and slot_start_req > 0:
+            start_ts = slot_start_req
+            end_ts = start_ts + est_min * 60
+        else:
+            start_ts, end_ts = default_next_free_slot(conn, s["pro_id"], est_min)
+        conflict = has_slot_conflict(conn, s["pro_id"], start_ts, end_ts)
+        if conflict:
+            raise ApiError(
+                409,
+                "slot_conflict",
+                "Acest interval orar este deja ocupat în calendarul meșterului. Alege alt slot liber.",
+            )
+        slot_lbl = sched or preferred_window or sms.format_ro_slot(start_ts, end_ts)
+        conn.execute(
+            "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
+            "neighborhood,client_address,client_phone,urgency_level,preferred_window,status,quote_price,quote_duration,"
+            "duration_minutes,scheduled_for,scheduled_start_at,scheduled_end_at,is_instant_book,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'accepted',?,?,?,?,?,?,1,?,?)",
+            (
+                bid,
+                user["id"],
+                s["pro_id"],
+                s["id"],
+                s["category"],
+                s["name"],
+                f"de la {s['price_from']} {s['price_unit']}",
+                desc,
+                neighborhood,
+                address,
+                phone,
+                urgency,
+                slot_lbl,
+                s["price_from"],
+                s["duration"],
+                est_min,
+                slot_lbl,
+                start_ts,
+                end_ts,
+                t,
+                t,
+            ),
+        )
+        for p in photos:
+            conn.execute("INSERT INTO booking_photos (booking_id,data_url) VALUES (?,?)", (bid, p))
+        conn.execute(
+            "INSERT INTO booking_events (booking_id,actor_id,from_status,to_status,at) VALUES (?,?,NULL,'accepted',?)",
+            (bid, user["id"], t),
+        )
+        notify(
+            conn,
+            s["pro_id"],
+            "instant_book_confirmed",
+            "Instant Book confirmat în Sibiu (" + neighborhood + ")",
+            f"{user['name']} a rezervat instant „{s['name']}” ({s['price_from']} RON) pe {slot_lbl}. Slotul este blocat!",
+            bid,
+        )
+        sms.schedule_anti_noshow_reminders(
+            conn,
+            bid,
+            phone,
+            s["pro_name"] if "pro_name" in s_keys else "Meșter REZOLV",
+            s["company_name"] if "company_name" in s_keys else "Meșter Verificat Sibiu",
+            s["name"],
+            s["price_from"],
+            start_ts,
+            end_ts,
+        )
+        analytics.track(
+            conn,
+            user["id"],
+            "client",
+            "instant_booking_confirmed",
+            {"booking_id": bid, "category": s["category"], "price_ron": s["price_from"]},
+        )
+        conn.commit()
+        return {"booking": _booking_view(conn, _booking_row(conn, bid), user, detail=True)}
+
     conn.execute(
         "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
         "neighborhood,client_address,client_phone,urgency_level,preferred_window,status,duration_minutes,scheduled_for,created_at,updated_at) "
@@ -856,6 +1110,11 @@ def _booking_view(conn, b, viewer, detail=False):
         "scheduled_for": b["scheduled_for"],
         "scheduled_start_at": b["scheduled_start_at"] if "scheduled_start_at" in b_keys else None,
         "scheduled_end_at": b["scheduled_end_at"] if "scheduled_end_at" in b_keys else None,
+        "is_instant_book": bool(b["is_instant_book"]) if "is_instant_book" in b_keys else False,
+        "on_my_way_at": b["on_my_way_at"] if "on_my_way_at" in b_keys else None,
+        "eta_minutes": b["eta_minutes"] if "eta_minutes" in b_keys else None,
+        "deposit_paid_ron": int(b["deposit_paid_ron"] or 0) if "deposit_paid_ron" in b_keys else 0,
+        "cascaded_from_booking_id": b["cascaded_from_booking_id"] if "cascaded_from_booking_id" in b_keys else None,
         "created_at": b["created_at"],
         "ago": ago(b["created_at"]),
         "time_label": b["scheduled_for"] or hhmm(b["created_at"]),
@@ -1507,6 +1766,358 @@ def trigger_booking_sms_now(conn, user, bid):
     return {"dispatched": sent, "booking": _booking_view(conn, b, user, detail=True)}
 
 
+def cascade_booking(conn, user, bid, data=None):
+    """Wave 2.1 Smart Fallback Cascade: Forward an unanswered or refused request to up to 2 other verified pros."""
+    require_role(user, "client", "admin")
+    b = _booking_row(conn, bid)
+    if not b or (user["role"] != "admin" and b["client_id"] != user["id"]):
+        raise ApiError(404, "not_found", "Programarea nu a fost găsită.")
+    if b["status"] not in ("pending", "refused"):
+        raise ApiError(
+            409,
+            "invalid_transition",
+            "Redirecționarea automată este disponibilă doar pentru cererile în așteptare sau refuzate.",
+        )
+
+    existing_cascaded_pros = {
+        r["pro_id"]
+        for r in conn.execute(
+            "SELECT pro_id FROM bookings WHERE id=? OR cascaded_from_booking_id=?",
+            (bid, bid),
+        )
+    }
+    candidates = conn.execute(
+        "SELECT p.user_id, u.name, s.id AS svc_id, s.name AS svc_name, s.price_from, s.price_unit, s.est_duration_min "
+        "FROM pro_profiles p JOIN users u ON u.id=p.user_id "
+        "JOIN pro_services s ON s.pro_id=p.user_id AND s.category=? AND s.active=1 "
+        "WHERE p.verification_status='verified' AND u.is_active=1 AND p.plan_status IN ('active','trial') "
+        "GROUP BY p.user_id ORDER BY (p.plan='pro') DESC, p.rating_avg DESC, p.rating_count DESC LIMIT 10",
+        (b["category"],),
+    ).fetchall()
+
+    photos = [
+        r["data_url"]
+        for r in conn.execute("SELECT data_url FROM booking_photos WHERE booking_id=? ORDER BY id", (bid,))
+    ]
+    created_bookings = []
+    t = now_ts()
+    for cand in candidates:
+        if cand["user_id"] in existing_cascaded_pros:
+            continue
+        new_bid = new_id("b_")
+        est_min = cand["est_duration_min"] or b["duration_minutes"] or 60
+        conn.execute(
+            "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
+            "neighborhood,client_address,client_phone,urgency_level,preferred_window,status,duration_minutes,"
+            "scheduled_for,cascaded_from_booking_id,created_at,updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?,?,?,?)",
+            (
+                new_bid,
+                b["client_id"],
+                cand["user_id"],
+                cand["svc_id"],
+                b["category"],
+                b["service_name"],
+                f"de la {cand['price_from']} {cand['price_unit']}",
+                b["description"],
+                b["neighborhood"],
+                b["client_address"],
+                b["client_phone"],
+                b["urgency_level"],
+                b["preferred_window"],
+                est_min,
+                b["scheduled_for"],
+                bid,
+                t,
+                t,
+            ),
+        )
+        for p_url in photos:
+            conn.execute("INSERT INTO booking_photos (booking_id,data_url) VALUES (?,?)", (new_bid, p_url))
+        conn.execute(
+            "INSERT INTO booking_events (booking_id,actor_id,from_status,to_status,at) VALUES (?,?,NULL,'pending',?)",
+            (new_bid, user["id"], t),
+        )
+        notify(
+            conn,
+            cand["user_id"],
+            "booking_cascaded",
+            f"Cerere preluată prioritar în {b['neighborhood']}",
+            f"Clientul așteaptă un răspuns rapid pentru „{b['service_name']}”. Trimite devizul acum!",
+            new_bid,
+        )
+        created_bookings.append(_booking_view(conn, _booking_row(conn, new_bid), user, detail=True))
+        existing_cascaded_pros.add(cand["user_id"])
+        if len(created_bookings) >= 2:
+            break
+
+    analytics.track(
+        conn,
+        user["id"],
+        user["role"],
+        "booking_smart_cascade",
+        {"original_booking_id": bid, "cascaded_count": len(created_bookings)},
+    )
+    conn.commit()
+    return {
+        "original_booking_id": bid,
+        "cascaded_count": len(created_bookings),
+        "cascaded_bookings": created_bookings,
+        "message": f"Cererea a fost redirecționată automat către {len(created_bookings)} meșteri verificați din Sibiu.",
+    }
+
+
+def mark_on_my_way(conn, user, bid, data=None):
+    """Wave 2.3: Pro 1-Tap 'Sunt pe drum (ETA)' via WhatsApp Business API + Push + SMS fallback."""
+    require_role(user, "pro", "admin")
+    b = _booking_row(conn, bid)
+    if not b or (user["role"] != "admin" and b["pro_id"] != user["id"]):
+        raise ApiError(404, "not_found", "Programarea nu a fost găsită.")
+    if b["status"] != "accepted":
+        raise ApiError(409, "invalid_transition", "Poți anunța plecarea doar pentru o lucrare confirmată.")
+
+    v = Validator(data or {})
+    eta_minutes = v.integer("eta_minutes", min=5, max=180, required=False, label="Timpul estimat de sosire") or 20
+    channel = v.choice("channel", ("whatsapp", "sms"), required=False, label="Canalul") or "whatsapp"
+    v.done()
+
+    t = now_ts()
+    conn.execute(
+        "UPDATE bookings SET on_my_way_at=?, eta_minutes=?, updated_at=? WHERE id=?",
+        (t, eta_minutes, t, bid),
+    )
+    conn.execute(
+        "INSERT INTO booking_events (booking_id,actor_id,from_status,to_status,at) VALUES (?,?,'accepted','on_my_way',?)",
+        (bid, user["id"], t),
+    )
+    p_row = conn.execute("SELECT company_name, cui FROM pro_profiles WHERE user_id=?", (b["pro_id"],)).fetchone()
+    company_name = p_row["company_name"] if p_row else (b["pro_company"] or "Meșter REZOLV Sibiu")
+    cui = p_row["cui"] if p_row else "RO000000"
+
+    wa_msg = sms.send_on_my_way_notification(
+        conn,
+        bid,
+        b["resolved_client_phone"],
+        b["pro_name"],
+        company_name,
+        cui,
+        b["service_name"],
+        eta_minutes=eta_minutes,
+        channel=channel,
+    )
+    notify(
+        conn,
+        b["client_id"],
+        "pro_on_my_way",
+        f"Meșterul este pe drum! (ETA ~{eta_minutes} min)",
+        f"{b['pro_name']} ({company_name}, CUI {cui}) a plecat spre adresa ta din Sibiu.",
+        bid,
+    )
+    analytics.track(
+        conn,
+        user["id"],
+        user["role"],
+        "pro_on_my_way_sent",
+        {"booking_id": bid, "eta_minutes": eta_minutes, "channel": wa_msg["provider"]},
+    )
+    conn.commit()
+    return {
+        "booking": _booking_view(conn, _booking_row(conn, bid), user, detail=True),
+        "dispatch": wa_msg,
+        "message": f"Clientul a primit notificarea că ești pe drum (sosire în ~{eta_minutes} minute).",
+    }
+
+
+def pay_booking_deposit(conn, ctx, user, bid, data=None):
+    """Wave 2.4: Optional small card prepayment / inspection deposit (50-100 RON) to prevent no-shows without full escrow."""
+    require_role(user, "client", "admin")
+    b = _booking_row(conn, bid)
+    if not b or (user["role"] != "admin" and b["client_id"] != user["id"]):
+        raise ApiError(404, "not_found", "Programarea nu a fost găsită.")
+    if b["status"] not in ("pending", "estimated", "accepted"):
+        raise ApiError(409, "invalid_transition", "Avansul poate fi achitat doar pentru o programare activă.")
+
+    v = Validator(data or {})
+    amount_ron = v.integer("amount_ron", min=25, max=500, required=False, label="Avansul") or 50
+    v.done()
+
+    card = (data or {}).get("card")
+    if card is None:
+        pm = conn.execute("SELECT * FROM payment_methods WHERE user_id=? AND is_default=1", (user["id"],)).fetchone()
+        card = {
+            "number": "4242424242424242" if (not pm or pm["last4"] == "4242") else "5555555555554444",
+            "exp": "12/29",
+            "cvc": "123",
+        }
+    res = ctx.provider.charge(amount_ron, card, f"Avans blocare slot REZOLV ({b['service_name']})")
+    t = now_ts()
+    dep_id = new_id("dep_")
+    conn.execute(
+        "INSERT INTO booking_deposits (id,booking_id,client_id,pro_id,amount_ron,status,provider,provider_ref,card_brand,card_last4,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            dep_id,
+            bid,
+            b["client_id"],
+            b["pro_id"],
+            amount_ron,
+            "succeeded" if res.ok else "failed",
+            ctx.provider.name,
+            res.ref,
+            res.brand,
+            res.last4,
+            t,
+        ),
+    )
+    if not res.ok:
+        conn.commit()
+        raise ApiError(402, "card_declined", res.reason or "Plata avansului a fost refuzată.")
+
+    conn.execute(
+        "UPDATE bookings SET deposit_paid_ron = COALESCE(deposit_paid_ron, 0) + ?, updated_at=? WHERE id=?",
+        (amount_ron, t, bid),
+    )
+    notify(
+        conn,
+        b["pro_id"],
+        "deposit_paid",
+        f"Avans anti-no-show achitat ({amount_ron} RON)",
+        f"{b['client_name']} a garantat programarea „{b['service_name']}” cu un avans de {amount_ron} RON.",
+        bid,
+    )
+    analytics.track(
+        conn,
+        user["id"],
+        user["role"],
+        "booking_deposit_paid",
+        {"booking_id": bid, "amount_ron": amount_ron, "provider": ctx.provider.name},
+    )
+    conn.commit()
+    return {
+        "deposit": {
+            "id": dep_id,
+            "booking_id": bid,
+            "amount_ron": amount_ron,
+            "status": "succeeded",
+            "provider": ctx.provider.name,
+            "provider_ref": res.ref,
+            "card_brand": res.brand,
+            "card_last4": res.last4,
+        },
+        "booking": _booking_view(conn, _booking_row(conn, bid), user, detail=True),
+        "message": f"Avansul de {amount_ron} RON a fost confirmat și garantează slotul în calendar.",
+    }
+
+
+def list_pro_portfolio(conn, user) -> dict:
+    """Wave 2.2: List Before/After portfolio photos for the authenticated pro."""
+    _own_profile(conn, user)
+    items = [
+        {
+            "id": pf["id"],
+            "title": pf["title"],
+            "category": pf["category"],
+            "before_caption": pf["before_caption"] or "Înainte",
+            "after_caption": pf["after_caption"] or "După",
+            "before_url": pf["before_url"],
+            "after_url": pf["after_url"],
+            "ago": ago(pf["created_at"]),
+        }
+        for pf in conn.execute(
+            "SELECT * FROM pro_portfolio_photos WHERE pro_id=? ORDER BY created_at DESC LIMIT 20",
+            (user["id"],),
+        )
+    ]
+    return {"portfolio": items}
+
+
+def add_pro_portfolio_photo(conn, user, data) -> dict:
+    """Wave 2.2: Add a Before/After portfolio entry for the authenticated pro."""
+    _own_profile(conn, user)
+    v = Validator(data or {})
+    title = v.text("title", min=3, max=120, label="Titlul lucrării")
+    category = v.text("category", max=60, required=False, label="Categoria") or "Instalații Sanitare"
+    before_caption = v.text("before_caption", max=120, required=False, label="Descriere Înainte") or "Înainte de intervenție"
+    after_caption = v.text("after_caption", max=120, required=False, label="Descriere După") or "După finalizare"
+    before_url = v.text("before_url", min=10, max=config.MAX_PHOTO_CHARS, label="Foto Înainte")
+    after_url = v.text("after_url", min=10, max=config.MAX_PHOTO_CHARS, label="Foto După")
+    v.done()
+
+    if not (PHOTO_RE.match(before_url or "") and PHOTO_RE.match(after_url or "")):
+        raise bad("Fotografiile Înainte/După trebuie să fie în format PNG/JPEG/WebP valid.", "photos")
+
+    cnt = conn.execute("SELECT COUNT(*) FROM pro_portfolio_photos WHERE pro_id=?", (user["id"],)).fetchone()[0]
+    if cnt >= 20:
+        raise ApiError(409, "portfolio_limit", "Poți adăuga maximum 20 de lucrări Înainte/După în portofoliu.")
+
+    pid = new_id("pf_")
+    t = now_ts()
+    conn.execute(
+        "INSERT INTO pro_portfolio_photos (id,pro_id,title,category,before_caption,after_caption,before_url,after_url,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
+        (pid, user["id"], title, category, before_caption, after_caption, before_url, after_url, t),
+    )
+    conn.commit()
+    return list_pro_portfolio(conn, user)
+
+
+def delete_pro_portfolio_photo(conn, user, item_id: str) -> dict:
+    _own_profile(conn, user)
+    conn.execute("DELETE FROM pro_portfolio_photos WHERE id=? AND pro_id=?", (item_id, user["id"]))
+    conn.commit()
+    return list_pro_portfolio(conn, user)
+
+
+def add_external_review(conn, user, data) -> dict:
+    """Wave 2.2: Import a verified external client review (up to 5 per pro, Fixly/Checkatrade style)."""
+    p = _own_profile(conn, user)
+    v = Validator(data or {})
+    author_name = v.text("author_name", min=2, max=80, label="Numele clientului")
+    client_phone = v.phone("client_phone", required=False, label="Telefonul clientului")
+    rating = v.integer("rating", min=1, max=5, label="Nota")
+    comment = v.text("comment", min=5, max=600, label="Recenzia clientului")
+    source_label = v.text("source_label", max=80, required=False, label="Sursa") or "Client verificat telefonic"
+    v.done()
+
+    cnt = conn.execute("SELECT COUNT(*) FROM external_reviews WHERE pro_id=?", (user["id"],)).fetchone()[0]
+    if cnt >= 5:
+        raise ApiError(409, "external_reviews_limit", "Poți importa maximum 5 recenzii externe verificate.")
+
+    rid = new_id("ext_")
+    t = now_ts()
+    conn.execute(
+        "INSERT INTO external_reviews (id,pro_id,author_name,client_phone,rating,comment,source_label,verified,created_at) "
+        "VALUES (?,?,?,?,?,?,?,1,?)",
+        (rid, user["id"], author_name, client_phone, rating, comment, source_label, t),
+    )
+    # Also blend into pro_profiles rating if pro has few reviews
+    old_avg = float(p["rating_avg"] or 0)
+    old_cnt = int(p["rating_count"] or 0)
+    new_avg = round((old_avg * old_cnt + rating) / (old_cnt + 1), 2)
+    conn.execute(
+        "UPDATE pro_profiles SET rating_avg=?, rating_count=? WHERE user_id=?",
+        (new_avg, old_cnt + 1, user["id"]),
+    )
+    conn.commit()
+    return get_professional(conn, user["id"])
+
+
+def create_web2app_session(conn, user, data) -> dict:
+    """Wave 2.4: Create a Web2App checkout session for B2B subscriptions or booking deposits."""
+    v = Validator(data or {})
+    kind = v.choice("kind", ("subscription", "deposit"), required=False, label="Tipul plății") or "subscription"
+    plan = v.choice("plan", ("essential", "pro"), required=False, label="Planul")
+    booking_id = v.text("booking_id", max=60, required=False, label="Programarea")
+    amount_ron = v.integer("amount_ron", min=10, max=2000, required=False, label="Suma")
+    v.done()
+    if kind == "subscription":
+        plan = plan or "pro"
+        amount_ron = payments.PLANS[plan]["price_ron"]
+    else:
+        amount_ron = amount_ron or 50
+    return payments.create_web2app_checkout_session(kind, amount_ron, user["id"], plan=plan, booking_id=booking_id)
+
+
 # ------------------------------------------------------------ pro workspace & B2B calendar
 def _own_profile(conn, user):
     require_role(user, "pro")
@@ -1592,6 +2203,27 @@ def pro_dashboard(conn, user):
     p = _own_profile(conn, user)
     t = now_ts()
 
+    rev_row = conn.execute(
+        "SELECT AVG(rating) AS avg_rating, COUNT(*) AS cnt FROM reviews WHERE pro_id = ?",
+        (user["id"],),
+    ).fetchone()
+    if rev_row and rev_row["cnt"] > 0:
+        rating_avg = round(float(rev_row["avg_rating"]), 1)
+        rating_count = int(rev_row["cnt"])
+    else:
+        rating_avg = round(float(p["rating_avg"]), 1) if ("rating_avg" in p.keys() and p["rating_avg"]) else 5.0
+        rating_count = int(p["rating_count"]) if ("rating_count" in p.keys() and p["rating_count"]) else 0
+
+    speed_row = conn.execute(
+        "SELECT AVG(est.created_at - b.created_at) "
+        "FROM estimates est "
+        "JOIN bookings b ON b.id = est.booking_id "
+        "WHERE est.pro_id = ? AND est.created_at >= b.created_at",
+        (user["id"],),
+    ).fetchone()
+    avg_speed_sec = speed_row[0] if (speed_row and speed_row[0] is not None) else None
+    response_speed = format_response_speed(avg_speed_sec)
+
     def revenue(a, b):
         return conn.execute(
             "SELECT COALESCE(SUM(quote_price),0) s, COUNT(*) c FROM bookings WHERE pro_id=? AND "
@@ -1631,6 +2263,9 @@ def pro_dashboard(conn, user):
     analytics.track(conn, user["id"], "pro", "pro_dashboard_viewed", {"city": "Sibiu"})
     conn.commit()
     return {
+        "rating_avg": rating_avg,
+        "rating_count": rating_count,
+        "response_speed": response_speed,
         "week": {"revenue": this["s"], "jobs": this["c"], "change_pct": change},
         "plan": {
             "plan": p["plan"],
@@ -1874,18 +2509,19 @@ def checkout(conn, ctx, user, data):
         raise ApiError(402, "card_declined", res.reason or "Plata a fost refuzată.")
     if card.get("number") and data.get("card") and data.get("save_card"):
         save_payment_method(conn, user, {"card": data["card"]})
+    price_eur = payments.PLANS[plan]["price_eur"]
     conn.execute(
-        "UPDATE pro_profiles SET plan=?, plan_status='active', subscription_price_eur=39, plan_renews_at=? WHERE user_id=?",
-        (plan, t + 30 * DAY, user["id"]),
+        "UPDATE pro_profiles SET plan=?, plan_status='active', subscription_price_eur=?, plan_renews_at=? WHERE user_id=?",
+        (plan, price_eur, t + 30 * DAY, user["id"]),
     )
     notify(
         conn,
         user["id"],
         "payment",
-        "Plată reușită (39 EUR/lună • 0% comision)",
+        f"Plată reușită ({price_eur} EUR/lună • 0% comision)",
         f"Planul {payments.PLANS[plan]['name']} este activ. Factura {invoice}.",
     )
-    analytics.track(conn, user["id"], "pro", "subscription_activated", {"plan": plan, "price_eur": 39})
+    analytics.track(conn, user["id"], "pro", "subscription_activated", {"plan": plan, "price_eur": price_eur})
     conn.commit()
     return subscription(conn, user)
 
@@ -2038,6 +2674,209 @@ def truncate_to_token_budget(text: str, max_tokens: int | None = None) -> tuple[
     return clipped, orig_tokens, used_tokens, True
 
 
+def parse_price_range_ron(price_str: str) -> dict[str, int]:
+    """Parse integer min and max RON prices from strings like '120 – 280 RON' or '50 – 120 RON/mp'."""
+    m = re.search(r"(\d+)\s*[–—\-]\s*(\d+)", price_str or "")
+    if m:
+        p_min, p_max = int(m.group(1)), int(m.group(2))
+        return {"min": p_min, "max": max(p_min, p_max)}
+    m_single = re.search(r"(\d+)", price_str or "")
+    if m_single:
+        v = int(m_single.group(1))
+        return {"min": v, "max": v}
+    return {"min": 100, "max": 250}
+
+
+def _extract_inline_photo_part(photo: str) -> dict | None:
+    """Extract MIME type and raw base64 data for Gemini inline_data.
+
+    Accepts data URL formatted as 'data:image/(png|jpe?g|webp);base64,<data>'.
+    Returns dictionary: {'inline_data': {'mime_type': str, 'data': str}}.
+    """
+    if not isinstance(photo, str):
+        return None
+    match = re.match(r"^data:(image/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$", photo)
+    if not match:
+        return None
+    mime_type, b64_data = match.group(1), match.group(2)
+    if mime_type == "image/jpg":
+        mime_type = "image/jpeg"
+    return {
+        "inline_data": {
+            "mime_type": mime_type,
+            "data": b64_data,
+        }
+    }
+
+
+def _build_gemini_payload(clean_problem: str, photos: list[str]) -> bytes:
+    """Construct JSON request payload for gemini-2.5-flash generateContent."""
+    prompt_text = (
+        "Ești dispecerul tehnic și expertul în reparații la domiciliu pentru platforma REZOLV din Sibiu (România).\n"
+        "Analizează descrierea clientului și fotografiile atașate (dacă există) pentru a identifica defecțiunea tehnică, "
+        "piesele necesare și estimarea orientativă a prețului în RON (manoperă + piese) specific pieței din Sibiu.\n\n"
+        "CATEGORII DISPONIBILE (alege strict una singură):\n"
+        "1. Instalații Sanitare\n"
+        "2. Instalații Electrice\n"
+        "3. Climatizare & Termice\n"
+        "4. Mecanică Auto\n"
+        "5. Vulcanizare Mobilă\n"
+        "6. Reparații Electrocasnice\n"
+        "7. Lăcătuș\n"
+        "8. Zugrăveli & Finisaje\n"
+        "9. Zidărie & Faianțare\n"
+        "10. Montaj Mobilă\n"
+        "11. Acoperișuri & Exterioare\n"
+        "12. Curățenie\n\n"
+        "CERINȚĂ DE IEȘIRE: Returnează STRICT un obiect JSON valid conform acestei structuri:\n"
+        "{\n"
+        '  "category": "Una din cele 12 categorii de mai sus",\n'
+        '  "has_visible_repair_issue": true,\n'
+        '  "identified_malfunction": "Descrierea concisă a defecțiunii identificate în limba română (minim 10 caractere)",\n'
+        '  "required_parts": ["Denumire piesă/material 1", "Denumire piesă 2"],\n'
+        '  "price_min_ron": 120,\n'
+        '  "price_max_ron": 220,\n'
+        '  "urgency": "scăzut | mediu | urgent_today",\n'
+        '  "reason": "Explicație profesională pentru client în limba română (minim 20 caractere)"\n'
+        "}\n\n"
+        "REGULI SPECIALE:\n"
+        "- Prețurile trebuie să fie numere întregi în RON specifice pieței din Sibiu.\n"
+        "- Dacă fotografiile nu prezintă o defecțiune tehnică relevantă, setează 'has_visible_repair_issue': false, bazează-te pe text și menționează în 'reason'.\n"
+        "- Setează 'urgency': 'urgent_today' doar pentru inundații active, scântei/fum, lipsă căldură iarna, ușă blocată, pană roată.\n\n"
+        f"DESCRIERE CLIENT:\n{clean_problem}"
+    )
+    parts: list[dict] = [{"text": prompt_text}]
+    for p in photos:
+        inline_part = _extract_inline_photo_part(p)
+        if inline_part:
+            parts.append(inline_part)
+
+    payload_dict = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": parts,
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json",
+        },
+    }
+    return json.dumps(payload_dict).encode("utf-8")
+
+
+def _call_gemini_generate_content(payload_bytes: bytes, api_key: str, timeout: float = 8.0) -> dict | None:
+    """Make HTTP POST request to Google Generative Language REST API with strict error shielding."""
+    if not api_key or not api_key.strip():
+        return None
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key.strip()}"
+    headers = {"Content-Type": "application/json"}
+    req = urllib_request.Request(url, data=payload_bytes, headers=headers)
+
+    try:
+        with urllib_request.urlopen(req, timeout=timeout) as resp:
+            raw_body = resp.read().decode("utf-8")
+            return json.loads(raw_body)
+    except Exception:
+        # Gracefully handle HTTPError, URLError, TimeoutError, JSONDecodeError without leaking credentials
+        return None
+
+
+def _parse_gemini_response(resp_data: dict) -> dict | None:
+    """Safely parse candidates and inner JSON from Gemini API response."""
+    try:
+        candidates = resp_data.get("candidates")
+        if not candidates or not isinstance(candidates, list):
+            return None
+        candidate = candidates[0]
+        content = candidate.get("content", {})
+        parts = content.get("parts", [])
+        if not parts or not isinstance(parts, list):
+            return None
+        cand_text = parts[0].get("text", "").strip()
+        if not cand_text:
+            return None
+
+        clean_text = cand_text
+        if clean_text.startswith("```"):
+            lines = clean_text.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            clean_text = "\n".join(lines).strip()
+
+        parsed = json.loads(clean_text)
+        if not isinstance(parsed, dict):
+            return None
+
+        cat_candidate = str(parsed.get("category") or "").strip()
+        norm_cat = normalize_ro(cat_candidate)
+        matched_cat = None
+        for name, _, _, _ in AI_RULES:
+            if normalize_ro(name) == norm_cat:
+                matched_cat = name
+                break
+        if not matched_cat and len(norm_cat) >= 3:
+            for name, _, _, _ in AI_RULES:
+                if normalize_ro(name) in norm_cat or norm_cat in normalize_ro(name):
+                    matched_cat = name
+                    break
+        if not matched_cat:
+            return None
+
+        malfunction = str(parsed.get("identified_malfunction", "")).strip()
+        if len(malfunction) < 5:
+            malfunction = f"Defecțiune tehnică identificată: {matched_cat}"
+
+        parts_list = parsed.get("required_parts")
+        if isinstance(parts_list, list):
+            required_parts = [str(x).strip() for x in parts_list if str(x).strip()]
+        elif parts_list:
+            required_parts = [str(parts_list).strip()]
+        else:
+            required_parts = []
+        if not required_parts:
+            required_parts = [f"Piese și consumabile specifice pentru {matched_cat}"]
+
+        price_range = parsed.get("price_range_ron")
+        if isinstance(price_range, dict) and "min" in price_range and "max" in price_range:
+            p_min = int(price_range["min"])
+            p_max = int(price_range["max"])
+        else:
+            p_min = int(parsed.get("price_min_ron", 100))
+            p_max = int(parsed.get("price_max_ron", 250))
+        if p_min <= 0:
+            p_min = 100
+        if p_max < p_min:
+            p_max = p_min + 100
+
+        reason = str(parsed.get("reason", "")).strip()
+        if len(reason) < 15:
+            reason = f"Evaluare tehnică finalizată pentru {matched_cat}. Recomandăm intervenția unui profesionist verificat."
+
+        urgency_raw = str(parsed.get("urgency", "mediu")).strip().lower()
+        if "urgent" in urgency_raw:
+            urgency = "urgent_today"
+        elif "scazut" in normalize_ro(urgency_raw):
+            urgency = "scăzut"
+        else:
+            urgency = "mediu"
+
+        return {
+            "category": matched_cat,
+            "identified_malfunction": malfunction,
+            "required_parts": required_parts,
+            "price_range_ron": {"min": p_min, "max": p_max},
+            "urgency": urgency,
+            "reason": reason,
+        }
+    except Exception:
+        return None
+
+
 def ai_recommend(conn, data):
     if not isinstance(data, dict):
         raise ApiError(400, "bad_request", "Corpul cererii trebuie să fie un obiect JSON.")
@@ -2066,75 +2905,81 @@ def ai_recommend(conn, data):
             {"problem": "Conținut blocat de filtrul de securitate AI."},
         )
 
-    # 2. Spend Cap Check & Token Context Window Management
+    # 2. Multimodal Photo Validation (MUST occur before spend check so malformed payloads don't burn AI spend quota)
+    validated_photos = _validate_photos(data.get("photos"))
+    photos_count = len(validated_photos)
+
+    # 3. Spend Cap Check & Token Context Window Management
     observability.check_and_record_spend(conn, "ai", enforce=True)
     clean_problem, orig_tokens, used_tokens, truncated = truncate_to_token_budget(
         raw_problem.strip(), config.AI_MAX_INPUT_TOKENS
     )
-    photos_raw = data.get("photos")
-    photos_count = len(photos_raw) if isinstance(photos_raw, list) else 0
 
-    # 3. Primary Model API vs Deterministic Fallback Circuit Breaker
+    # 4. Primary Model API vs Deterministic Fallback Circuit Breaker
     simulate_down = bool(data.get("simulate_model_down")) or config.AI_SIMULATE_OUTAGE
-    has_live_llm = bool(config.OPENAI_API_KEY.strip() or config.GEMINI_API_KEY.strip())
+    has_live_llm = bool(config.GEMINI_API_KEY.strip() or config.OPENAI_API_KEY.strip())
     fallback_used = simulate_down or not has_live_llm
     provider = "deterministic_fallback" if fallback_used else "llm_primary_with_fallback"
+    engine = "rules_fallback" if fallback_used else "gemini-2.5-flash"
 
-    llm_cat = None
+    llm_result = None
     if has_live_llm and not simulate_down:
         try:
             if config.GEMINI_API_KEY.strip():
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={config.GEMINI_API_KEY.strip()}"
-                prompt_content = (
-                    "Triage repair problem in Sibiu into exactly one of the 12 categories: "
-                    "Instalații Sanitare, Instalații Electrice, Climatizare & Termice, Mecanică Auto, "
-                    "Vulcanizare Mobilă, Reparații Electrocasnice, Lăcătuș, Zugrăveli & Finisaje, "
-                    "Zidărie & Faianțare, Montaj Mobilă, Acoperișuri & Exterioare, Curățenie. "
-                    f"Description: {clean_problem}"
-                )
-                payload = json.dumps({"contents": [{"parts": [{"text": prompt_content}]}]}).encode("utf-8")
-                req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req, timeout=config.AI_MODEL_TIMEOUT_SEC) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8"))
-                    cand = resp_data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                    cand_norm = normalize_ro(cand)
-                    for name, _, _, _ in AI_RULES:
-                        if normalize_ro(name) in cand_norm:
-                            llm_cat = name
-                            break
+                payload_bytes = _build_gemini_payload(clean_problem, validated_photos)
+                timeout = getattr(config, "AI_MODEL_TIMEOUT_SEC", 8.0)
+                resp_data = _call_gemini_generate_content(payload_bytes, config.GEMINI_API_KEY, timeout=timeout)
+                if resp_data:
+                    llm_result = _parse_gemini_response(resp_data)
         except Exception:
+            llm_result = None
+
+        if not llm_result:
             fallback_used = True
             provider = "deterministic_fallback"
+            engine = "rules_fallback"
 
     norm_text = normalize_ro(clean_problem)
-    cat, price, reason = (
-        "Instalații Sanitare",
-        "100 – 400 RON",
-        "Am selectat un meșter verificat din Sibiu care poate trimite o estimare rapidă.",
-    )
-    matched = False
-    matched_terms: list[str] = []
-    if llm_cat:
-        cat, matched = llm_cat, True
-        for name, _, p, why in AI_RULES:
-            if name == cat:
-                price, reason = p, why
-                break
+    urgent_by_text = bool(re.search(r"inund|curge tare|urgen|scantei|fum|ramas pe dinafara", norm_text))
+
+    if llm_result:
+        cat = llm_result["category"]
+        identified_malfunction = llm_result["identified_malfunction"]
+        required_parts = llm_result["required_parts"]
+        price_range_ron = llm_result["price_range_ron"]
+        p_min = price_range_ron["min"]
+        p_max = price_range_ron["max"]
+        price_display = f"Estimare orientativă: {p_min} – {p_max} RON"
+        urgency = "urgent_today" if urgent_by_text else llm_result["urgency"]
+        reason = llm_result["reason"]
+        matched = True
+        matched_terms: list[str] = []
     else:
+        # Fallback to AI_RULES
+        cat, price_str, reason = (
+            "Instalații Sanitare",
+            "100 – 400 RON",
+            "Am selectat un meșter verificat din Sibiu care poate trimite o estimare rapidă.",
+        )
+        matched = False
+        matched_terms = []
         best_score = 0
         for name, rx, p, why in AI_RULES:
             hits = re.findall(rx, norm_text)
             if hits:
-                # Score combines number of matched domain terms + specificity (length of multi-word matches)
                 unique_hits = list(dict.fromkeys(h.strip() for h in hits if h.strip()))
                 score = len(unique_hits) * 10 + sum(len(h) for h in unique_hits)
                 if score > best_score:
                     best_score = score
-                    cat, price, reason, matched = name, p, why, True
+                    cat, price_str, reason, matched = name, p, why, True
                     matched_terms = unique_hits
 
+        price_range_ron = parse_price_range_ron(price_str)
+        p_min = price_range_ron["min"]
+        p_max = price_range_ron["max"]
+        price_display = f"Estimare orientativă: {price_str}"
+
     pros = list_professionals(conn, cat)["professionals"]
-    urgent = bool(re.search(r"inund|curge tare|urgen|scantei|fum|ramas pe dinafara", norm_text))
     recommended_service = None
     if pros and pros[0].get("services"):
         srv_list = pros[0]["services"]
@@ -2144,8 +2989,17 @@ def ai_recommend(conn, data):
             if any(w in norm_text for w in s_words):
                 recommended_service = s["name"]
                 break
+
+    if not llm_result:
+        identified_malfunction = recommended_service if (recommended_service and len(recommended_service) >= 10) else f"Defecțiune tehnică sesizată ({cat})"
+        required_parts = [f"Piese și consumabile specifice pentru {cat}"]
         if matched and matched_terms:
             reason = f"{reason} Serviciu identificat: „{recommended_service}” (elemente detectate: {', '.join(matched_terms[:3])})."
+
+        if urgent_by_text:
+            urgency = "Intervenție urgentă Sibiu"
+        else:
+            urgency = pros[0]["availability"] if pros else "Disponibil curând"
 
     analytics.track(
         conn,
@@ -2155,7 +3009,7 @@ def ai_recommend(conn, data):
         {
             "category": cat,
             "matched": matched,
-            "urgent": urgent,
+            "urgent": "urgent" in urgency.lower(),
             "fallback_used": fallback_used,
             "context_truncated": truncated,
             "tokens": used_tokens,
@@ -2163,18 +3017,23 @@ def ai_recommend(conn, data):
         },
     )
     conn.commit()
+
     return {
         "category": cat,
+        "identified_malfunction": identified_malfunction,
+        "required_parts": required_parts,
+        "price": price_display,
+        "price_range_ron": price_range_ron,
+        "urgency": urgency,
         "reason": reason,
-        "price": f"Estimare orientativă: {price}",
-        "matched": matched,
-        "urgency": "Intervenție urgentă Sibiu" if urgent else (pros[0]["availability"] if pros else "Disponibil curând"),
+        "photos_analyzed": photos_count,
+        "engine": engine,
         "professional": pros[0] if pros else None,
         "recommended_service": recommended_service,
+        "matched": matched,
         "provider": provider,
         "fallback_used": fallback_used,
         "context_truncated": truncated,
-        "photos_analyzed": photos_count,
         "token_usage": {
             "original_tokens": orig_tokens,
             "used_tokens": used_tokens,
@@ -2357,14 +3216,16 @@ def admin_white_glove_onboard(conn, user, data):
         (uid, email, pw_hash, name, phone, zones[0], f"{zones[0]}, Sibiu", t, t),
     )
     ver.register(canon, company, True, f"{zones[0]}, Sibiu", primary_category)
+    slug = generate_pro_slug(conn, company or name, uid)
     conn.execute(
-        "INSERT INTO pro_profiles (user_id,company_name,cui,headline,bio,experience_years,city,zones_json,hours_json,"
+        "INSERT INTO pro_profiles (user_id,slug,company_name,cui,headline,bio,experience_years,city,zones_json,hours_json,"
         "slot_step_minutes,verification_status,verification_note,verified_at,onboarded_by_admin,rating_avg,rating_count,"
         "jobs_completed,availability,distance_km,plan,plan_status,subscription_price_eur,plan_renews_at) "
-        "VALUES (?,?,?,?,?,?,'Sibiu',?,?,30,'verified','White-Glove Onboarding de către Fondator (Sibiu)',?,1,5.0,1,0,"
+        "VALUES (?,?,?,?,?,?,?,'Sibiu',?,?,30,'verified','White-Glove Onboarding de către Fondator (Sibiu)',?,1,5.0,1,0,"
         "'Disponibil astăzi',2.0,'pro',?,39,?)",
         (
             uid,
+            slug,
             company,
             canon,
             primary_category,

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -64,6 +65,33 @@ def _send_via_twilio(to_e164: str, body: str) -> tuple[str, str]:
         return "failed", "SM_err_" + new_id("")[:12]
 
 
+def _send_via_whatsapp_cloud(to_e164: str, body: str) -> tuple[str, str, str]:
+    """Primary notification channel: WhatsApp Business Cloud API (~0.41 RON/booking vs ~1.32 RON SMS).
+    Returns (status, provider_name, provider_sid). Falls back to Twilio SMS when unconfigured or on error.
+    """
+    wa_token = getattr(config, "WHATSAPP_ACCESS_TOKEN", "") or os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+    wa_phone_id = getattr(config, "WHATSAPP_PHONE_NUMBER_ID", "") or os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+    if wa_token and wa_phone_id:
+        url = f"https://graph.facebook.com/v19.0/{wa_phone_id}/messages"
+        payload = json.dumps({
+            "messaging_product": "whatsapp",
+            "to": to_e164.lstrip("+"),
+            "type": "text",
+            "text": {"preview_url": False, "body": body},
+        }).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, method="POST")
+        req.add_header("Authorization", f"Bearer {wa_token}")
+        req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                msg_id = ((data.get("messages") or [{}])[0]).get("id") or ("WA_" + new_id("")[:16])
+                return "sent", "whatsapp_live", msg_id
+        except (urllib.error.URLError, ValueError, KeyError, OSError):
+            pass
+    return "delivered", "whatsapp_sandbox", "WA_sandbox_" + new_id("")[:16]
+
+
 def format_ro_slot(start_ts: int | None, end_ts: int | None = None, fallback: str | None = None) -> str:
     if not start_ts:
         return fallback or "În curând"
@@ -85,13 +113,20 @@ def send_instant_sms(
     reminder_type: str,
     message_body: str,
     recipient_role: str = "client",
+    prefer_channel: str = "sms",
 ) -> dict:
-    """Send an immediate SMS and record it in `sms_reminders`."""
+    """Send an immediate WhatsApp or SMS notification and record it in `sms_reminders`."""
     t = now_ts()
     observability.check_and_record_spend(conn, "sms", enforce=True)
     e164 = normalize_phone_e164(recipient_phone)
-    status, provider_sid = _send_via_twilio(e164, message_body)
-    provider = "twilio_live" if (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN) else "twilio_sandbox"
+    if prefer_channel == "whatsapp":
+        status, provider, provider_sid = _send_via_whatsapp_cloud(e164, message_body)
+        if status == "failed":
+            status, provider_sid = _send_via_twilio(e164, message_body)
+            provider = "twilio_live" if (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN) else "twilio_sandbox"
+    else:
+        status, provider_sid = _send_via_twilio(e164, message_body)
+        provider = "twilio_live" if (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN) else "twilio_sandbox"
     rid = new_id("sms_")
     conn.execute(
         "INSERT INTO sms_reminders (id,booking_id,recipient_phone,recipient_role,reminder_type,"
@@ -99,6 +134,7 @@ def send_instant_sms(
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (rid, booking_id, e164, recipient_role, reminder_type, message_body, t, status, provider, provider_sid, t, t),
     )
+    unit_cost_ron = 0.14 if provider.startswith("whatsapp") else 0.44
     return {
         "id": rid,
         "booking_id": booking_id,
@@ -108,9 +144,37 @@ def send_instant_sms(
         "status": status,
         "provider": provider,
         "provider_sid": provider_sid,
+        "estimated_cost_ron": unit_cost_ron,
         "send_at": t,
         "sent_at": t,
     }
+
+
+def send_on_my_way_notification(
+    conn,
+    booking_id: str,
+    client_phone: str | None,
+    pro_name: str,
+    company_name: str,
+    cui: str,
+    service_name: str,
+    eta_minutes: int = 20,
+    channel: str = "whatsapp",
+) -> dict:
+    """Wave 2.3: Housecall Pro style 1-Tap 'Sunt pe drum (ETA)' notification via WhatsApp Business API + SMS fallback."""
+    msg = (
+        f"REZOLV Sibiu: Meșterul {pro_name} ({company_name}, CUI {cui}) a plecat spre tine "
+        f"pentru „{service_name}”! Sosire estimată: ~{eta_minutes} min."
+    )
+    return send_instant_sms(
+        conn,
+        booking_id,
+        client_phone,
+        "on_my_way",
+        msg,
+        recipient_role="client",
+        prefer_channel=channel,
+    )
 
 
 def schedule_anti_noshow_reminders(

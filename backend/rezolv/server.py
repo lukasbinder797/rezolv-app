@@ -207,6 +207,11 @@ def _pro(ctx, conn, user, p, b, q):
     return svc.get_professional(conn, p["id"])
 
 
+@route("GET", "/api/professionals/(?P<id>[\\w-]+)/slots", auth=None)
+def _pro_slots(ctx, conn, user, p, b, q):
+    return svc.get_professional_slots(conn, p["id"])
+
+
 @route("GET", "/api/bookings")
 def _bookings(ctx, conn, user, p, b, q):
     return svc.list_bookings(conn, user, q.get("status"))
@@ -250,6 +255,21 @@ def _reschedule(ctx, conn, user, p, b, q):
 @route("POST", "/api/bookings/(?P<id>\\w+)/sms-trigger")
 def _sms_trigger(ctx, conn, user, p, b, q):
     return svc.trigger_booking_sms_now(conn, user, p["id"])
+
+
+@route("POST", "/api/bookings/(?P<id>\\w+)/cascade")
+def _booking_cascade(ctx, conn, user, p, b, q):
+    return svc.cascade_booking(conn, user, p["id"], b)
+
+
+@route("POST", "/api/bookings/(?P<id>\\w+)/on-my-way")
+def _booking_on_my_way(ctx, conn, user, p, b, q):
+    return svc.mark_on_my_way(conn, user, p["id"], b)
+
+
+@route("POST", "/api/bookings/(?P<id>\\w+)/deposit")
+def _booking_deposit(ctx, conn, user, p, b, q):
+    return svc.pay_booking_deposit(conn, ctx, user, p["id"], b)
 
 
 @route("POST", "/api/bookings/(?P<id>\\w+)/refuse")
@@ -317,6 +337,31 @@ def _pro_profile(ctx, conn, user, p, b, q):
 @route("POST", "/api/pro/verification")
 def _pro_verify(ctx, conn, user, p, b, q):
     return svc.submit_verification(conn, user, b)
+
+
+@route("GET", "/api/pro/portfolio")
+def _pro_portfolio_list(ctx, conn, user, p, b, q):
+    return svc.list_pro_portfolio(conn, user)
+
+
+@route("POST", "/api/pro/portfolio")
+def _pro_portfolio_add(ctx, conn, user, p, b, q):
+    return svc.add_pro_portfolio_photo(conn, user, b)
+
+
+@route("DELETE", "/api/pro/portfolio/(?P<id>\\w+)")
+def _pro_portfolio_del(ctx, conn, user, p, b, q):
+    return svc.delete_pro_portfolio_photo(conn, user, p["id"])
+
+
+@route("POST", "/api/pro/external-reviews")
+def _pro_ext_review(ctx, conn, user, p, b, q):
+    return svc.add_external_review(conn, user, b)
+
+
+@route("POST", "/api/subscription/web2app-session")
+def _sub_web2app(ctx, conn, user, p, b, q):
+    return svc.create_web2app_session(conn, user, b)
 
 
 @route("GET", "/api/subscription")

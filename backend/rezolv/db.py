@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS pro_profiles (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  slug TEXT,
   company_name TEXT NOT NULL,
   cui TEXT NOT NULL UNIQUE,
   headline TEXT,
@@ -52,8 +53,10 @@ CREATE TABLE IF NOT EXISTS pro_profiles (
   plan TEXT NOT NULL DEFAULT 'essential' CHECK (plan IN ('essential','pro')),
   plan_status TEXT NOT NULL DEFAULT 'trial' CHECK (plan_status IN ('trial','active','past_due')),
   subscription_price_eur INTEGER NOT NULL DEFAULT 39,
-  plan_renews_at INTEGER
+  plan_renews_at INTEGER,
+  caen_code TEXT DEFAULT '4322'
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pro_profiles_slug ON pro_profiles(slug);
 
 CREATE TABLE IF NOT EXISTS categories (
   name TEXT PRIMARY KEY,
@@ -72,6 +75,8 @@ CREATE TABLE IF NOT EXISTS pro_services (
   price_unit TEXT NOT NULL DEFAULT 'RON',
   duration TEXT NOT NULL,
   est_duration_min INTEGER NOT NULL DEFAULT 60,
+  instant_book INTEGER NOT NULL DEFAULT 0,
+  deposit_ron INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_services_pro ON pro_services(pro_id);
@@ -102,6 +107,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   scheduled_start_at INTEGER,
   scheduled_end_at INTEGER,
   accepted_estimate_id TEXT,
+  is_instant_book INTEGER NOT NULL DEFAULT 0,
+  on_my_way_at INTEGER,
+  eta_minutes INTEGER,
+  deposit_paid_ron INTEGER NOT NULL DEFAULT 0,
+  cascaded_from_booking_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   completed_at INTEGER
@@ -136,7 +146,7 @@ CREATE TABLE IF NOT EXISTS sms_reminders (
   recipient_phone TEXT NOT NULL,
   recipient_role TEXT NOT NULL DEFAULT 'client',
   reminder_type TEXT NOT NULL
-    CHECK (reminder_type IN ('estimate_ready','booking_confirmed','reminder_24h','reminder_2h','rescheduled')),
+    CHECK (reminder_type IN ('estimate_ready','booking_confirmed','reminder_24h','reminder_2h','rescheduled','on_my_way')),
   message_body TEXT NOT NULL,
   send_at INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'scheduled'
@@ -148,6 +158,47 @@ CREATE TABLE IF NOT EXISTS sms_reminders (
 );
 CREATE INDEX IF NOT EXISTS idx_sms_booking ON sms_reminders(booking_id, reminder_type);
 CREATE INDEX IF NOT EXISTS idx_sms_due ON sms_reminders(status, send_at);
+
+CREATE TABLE IF NOT EXISTS pro_portfolio_photos (
+  id TEXT PRIMARY KEY,
+  pro_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL,
+  before_caption TEXT,
+  after_caption TEXT,
+  before_url TEXT NOT NULL,
+  after_url TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_portfolio_pro ON pro_portfolio_photos(pro_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS external_reviews (
+  id TEXT PRIMARY KEY,
+  pro_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  author_name TEXT NOT NULL,
+  client_phone TEXT,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment TEXT NOT NULL,
+  source_label TEXT NOT NULL DEFAULT 'Client verificat telefonic',
+  verified INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ext_reviews_pro ON external_reviews(pro_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS booking_deposits (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pro_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount_ron INTEGER NOT NULL CHECK (amount_ron > 0),
+  status TEXT NOT NULL CHECK (status IN ('succeeded','refunded','failed')),
+  provider TEXT NOT NULL,
+  provider_ref TEXT,
+  card_brand TEXT,
+  card_last4 TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deposits_booking ON booking_deposits(booking_id);
 
 CREATE TABLE IF NOT EXISTS analytics_events (
   id TEXT PRIMARY KEY,
@@ -331,6 +382,10 @@ def init_db(db_path: str | None = None) -> None:
     path = db_path or config.DB_PATH
     conn = connect(path)
     try:
+        # Safe migration if table exists from previous schema without slug
+        cols_pre = {r["name"] for r in conn.execute("PRAGMA table_info(pro_profiles)").fetchall()}
+        if cols_pre and "slug" not in cols_pre:
+            conn.execute("ALTER TABLE pro_profiles ADD COLUMN slug TEXT")
         conn.executescript(SCHEMA)
         cols_u = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
         if "email_verified" not in cols_u:
@@ -343,6 +398,60 @@ def init_db(db_path: str | None = None) -> None:
             conn.execute("ALTER TABLE bookings ADD COLUMN client_address TEXT")
         if "client_phone" not in cols_b:
             conn.execute("ALTER TABLE bookings ADD COLUMN client_phone TEXT")
+        if "is_instant_book" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN is_instant_book INTEGER NOT NULL DEFAULT 0")
+        if "on_my_way_at" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN on_my_way_at INTEGER")
+        if "eta_minutes" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN eta_minutes INTEGER")
+        if "deposit_paid_ron" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN deposit_paid_ron INTEGER NOT NULL DEFAULT 0")
+        if "cascaded_from_booking_id" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN cascaded_from_booking_id TEXT")
+
+        cols_s = {r["name"] for r in conn.execute("PRAGMA table_info(pro_services)").fetchall()}
+        if "instant_book" not in cols_s:
+            conn.execute("ALTER TABLE pro_services ADD COLUMN instant_book INTEGER NOT NULL DEFAULT 0")
+        if "deposit_ron" not in cols_s:
+            conn.execute("ALTER TABLE pro_services ADD COLUMN deposit_ron INTEGER NOT NULL DEFAULT 0")
+
+        cols_p = {r["name"] for r in conn.execute("PRAGMA table_info(pro_profiles)").fetchall()}
+        if "slug" not in cols_p:
+            conn.execute("ALTER TABLE pro_profiles ADD COLUMN slug TEXT")
+        if "caen_code" not in cols_p:
+            conn.execute("ALTER TABLE pro_profiles ADD COLUMN caen_code TEXT DEFAULT '4322'")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pro_profiles_slug ON pro_profiles(slug)")
+
+        # Ensure sms_reminders CHECK constraint supports 'on_my_way' on pre-existing DBs
+        sms_ddl = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='sms_reminders'"
+        ).fetchone()
+        if sms_ddl and sms_ddl["sql"] and "on_my_way" not in sms_ddl["sql"]:
+            conn.execute("ALTER TABLE sms_reminders RENAME TO sms_reminders_old")
+            conn.executescript(SCHEMA)
+            conn.execute(
+                "INSERT INTO sms_reminders SELECT id,booking_id,recipient_phone,recipient_role,"
+                "reminder_type,message_body,send_at,status,provider,provider_sid,sent_at,created_at "
+                "FROM sms_reminders_old"
+            )
+            conn.execute("DROP TABLE sms_reminders_old")
+
+        demo_slugs = {
+            "mester@rezolv.ro": "binder-lukas-instalator",
+            "marian@rezolv.ro": "marian-popescu-instalator",
+            "andrei@rezolv.ro": "andrei-munteanu-electrician",
+            "radu@rezolv.ro": "radu-petrescu-instalatii",
+            "ionut@rezolv.ro": "ionut-dragomir-mecanic",
+            "catalin@rezolv.ro": "catalin-stoica-vulcanizare",
+            "sorin@rezolv.ro": "sorin-toma-finisaje",
+            "mirela@rezolv.ro": "mirela-ene-curatenie",
+            "vlad@rezolv.ro": "vlad-lacatusu-lacatus",
+        }
+        for email, s in demo_slugs.items():
+            conn.execute(
+                "UPDATE pro_profiles SET slug=? WHERE slug IS NULL AND user_id=(SELECT id FROM users WHERE email=?)",
+                (s, email),
+            )
 
         icon_updates = {
             "Instalații Sanitare": "cat-instalatii-sanitare.svg",

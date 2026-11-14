@@ -7,6 +7,7 @@ import {
   type ApiBooking,
   type ApiCalendarDay,
   type ApiPro,
+  type ApiProSlot,
   type ApiQuickSlot,
   type ApiService,
   type ApiUser,
@@ -28,7 +29,7 @@ import {
   buildGoogleCalendarUrl,
 } from "./utils/calendarAndGeo"
 
-type Role = "client" | "pro"
+type Role = "client" | "pro" | "admin"
 type ClientTab = "home" | "search" | "bookings" | "profile"
 type ProTab = "dashboard" | "services" | "subscription" | "profile"
 type Service = [string, string, string, string]
@@ -65,6 +66,26 @@ const categories: Service[] = [
   ["Acoperișuri & Exterioare", "200 – 1500 RON", "cat-acoperisuri-exterioare.svg", "coral"],
   ["Curățenie", "150 – 450 RON", "cat-curatenie.svg", "gold"],
 ]
+
+function normalizeCategoryName(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[-_+]+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ș/g, "s")
+    .replace(/ț/g, "t")
+    .replace(/ş/g, "s")
+    .replace(/ţ/g, "t")
+    .trim()
+}
+
+function resolveCategory(query: string): Service | undefined {
+  const norm = normalizeCategoryName(query)
+  return categories.find(
+    ([name]) => name.toLowerCase() === query.toLowerCase() || normalizeCategoryName(name) === norm,
+  )
+}
 
 const navIcons = {
   home: "61a6c.svg",
@@ -200,9 +221,21 @@ function Brand() {
   )
 }
 
-function Login({ onAuth }: { onAuth: (user: ApiUser) => void }) {
-  const [role, setRole] = useState<Role>("client")
-  const [mode, setMode] = useState<"login" | "register">("login")
+function Login({
+  onAuth,
+  onClose,
+  initialRole = "client",
+  initialMode = "login",
+  isModal = false,
+}: {
+  onAuth: (user: ApiUser) => void
+  onClose?: () => void
+  initialRole?: Role
+  initialMode?: "login" | "register"
+  isModal?: boolean
+}) {
+  const [role, setRole] = useState<Role>(initialRole)
+  const [mode, setMode] = useState<"login" | "register">(initialMode)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
@@ -260,28 +293,58 @@ function Login({ onAuth }: { onAuth: (user: ApiUser) => void }) {
     fieldErrors[key] ? <div className="field-error">{fieldErrors[key]}</div> : null
 
   return (
-    <main className="login-screen">
+    <main
+      className="login-screen"
+      style={
+        isModal
+          ? {
+              minHeight: "auto",
+              background: "transparent",
+              padding: "16px 16px 24px",
+            }
+          : undefined
+      }
+    >
       <div className="login-wrap">
         <div className="login-header">
           <Brand />
-          <Pressable
-            className="help"
-            ariaLabel="Ajutor"
-            onClick={() =>
-              setDialog({
-                title: "Cum te putem ajuta?",
-                message:
-                  "Echipa REZOLV este disponibilă de luni până vineri, între 08:00 și 20:00. Ne poți contacta la suport@rezolv.ro.",
-                confirmLabel: "Trimite un email",
-                onConfirm: () => {
-                  window.location.href =
-                    "mailto:suport@rezolv.ro?subject=Ajutor REZOLV"
-                },
-              })
-            }
-          >
-            ?
-          </Pressable>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {onClose && !isModal && (
+              <button
+                type="button"
+                className="text-action"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--accent)",
+                }}
+                onClick={onClose}
+              >
+                ← Catalog meșteri
+              </button>
+            )}
+            <Pressable
+              className="help"
+              ariaLabel="Ajutor"
+              onClick={() =>
+                setDialog({
+                  title: "Cum te putem ajuta?",
+                  message:
+                    "Echipa REZOLV este disponibilă de luni până vineri, între 08:00 și 20:00. Ne poți contacta la suport@rezolv.ro.",
+                  confirmLabel: "Trimite un email",
+                  onConfirm: () => {
+                    window.location.href =
+                      "mailto:suport@rezolv.ro?subject=Ajutor REZOLV"
+                  },
+                })
+              }
+            >
+              ?
+            </Pressable>
+          </div>
         </div>
 
         <section className="login-intro">
@@ -467,6 +530,88 @@ function Login({ onAuth }: { onAuth: (user: ApiUser) => void }) {
   )
 }
 
+function AuthModal({
+  onAuth,
+  onClose,
+  initialRole = "client",
+  initialMode = "login",
+}: {
+  onAuth: (user: ApiUser) => void
+  onClose: () => void
+  initialRole?: Role
+  initialMode?: "login" | "register"
+}) {
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Fereastră de autentificare"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.65)",
+        backdropFilter: "blur(4px)",
+        zIndex: 99999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        overflowY: "auto",
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: 460,
+          maxHeight: "92vh",
+          overflowY: "auto",
+          background: "var(--surface)",
+          borderRadius: 20,
+          boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Închide fereastra"
+          style={{
+            position: "absolute",
+            top: 14,
+            right: 14,
+            zIndex: 10,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--text)",
+            fontSize: 20,
+            lineHeight: 1,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          ×
+        </button>
+        <Login
+          onAuth={onAuth}
+          onClose={onClose}
+          initialRole={initialRole}
+          initialMode={initialMode}
+          isModal={true}
+        />
+      </div>
+    </div>
+  )
+}
+
 function Icon({ file }: { file: string }) {
   return <img alt="" className="icon-image" loading="lazy" decoding="async" src={assetUrl(file)} />
 }
@@ -581,7 +726,52 @@ function BookingCard({
         <span className="meta-chip price-chip tabular">
           {bookingPrice(booking)}
         </span>
+        {booking.is_instant_book && (
+          <span
+            className="meta-chip"
+            style={{
+              background: "rgba(21, 128, 61, 0.12)",
+              color: "var(--green, #15803d)",
+              fontWeight: 600,
+            }}
+          >
+            ⚡ Instant Book
+          </span>
+        )}
+        {(booking.deposit_paid_ron ?? 0) > 0 && (
+          <span
+            className="meta-chip"
+            style={{
+              background: "var(--soft-blue, #e0f2fe)",
+              color: "var(--navy, #0f172a)",
+              fontWeight: 600,
+            }}
+          >
+            🛡️ Avans {booking.deposit_paid_ron} RON garantat
+          </span>
+        )}
       </div>
+
+      {/* Wave 2.3: Live On-My-Way ETA Banner */}
+      {isAccepted && booking.on_my_way_at && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "8px 12px",
+            borderRadius: "var(--radius-sm, 6px)",
+            background: "rgba(21, 128, 61, 0.1)",
+            border: "1px solid rgba(21, 128, 61, 0.25)",
+            color: "var(--green, #15803d)",
+            fontSize: 12,
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>🚗 Meșterul este pe drum spre tine! Sosire estimată: ~{booking.eta_minutes || 20} min</span>
+        </div>
+      )}
 
       {/* Quote acceptance CTA (Only when estimate is waiting) */}
       {isEst && onAcceptEstimate && (
@@ -640,8 +830,9 @@ function ClientHome({
   onOpenBookings,
   onAcceptEstimate,
   onDeclineEstimate,
+  onLogin,
 }: {
-  user: ApiUser
+  user: ApiUser | null
   bookings: ApiBooking[]
   onReview: (booking: ApiBooking) => void
   onCategory: (name: string, price: string) => void
@@ -649,6 +840,7 @@ function ClientHome({
   onOpenBookings: () => void
   onAcceptEstimate: (booking: ApiBooking) => void
   onDeclineEstimate: (booking: ApiBooking) => void
+  onLogin?: () => void
 }) {
   const [query, setQuery] = useState("")
   const filtered = categories.filter(([name]) =>
@@ -664,7 +856,7 @@ function ClientHome({
     (b) => b.status === "estimated" || b.status === "accepted" || b.status === "pending",
   ).length
 
-  const firstName = (user.name || "Client").trim().split(" ")[0]
+  const firstName = user?.name ? user.name.trim().split(" ")[0] : null
 
   return (
     <div className="screen-content client-home">
@@ -672,27 +864,53 @@ function ClientHome({
       <header className="home-header">
         <div className="home-greeting">
           <div className="greeting-row">
-            <h1 className="greeting-title">Salut, {firstName}!</h1>
+            <h1 className="greeting-title">
+              {firstName ? `Salut, ${firstName}!` : "Meșteri verificați în Sibiu"}
+            </h1>
             <button
               type="button"
               className="location-pill"
               onClick={onProfile}
-              title="Schimbă adresa de reședință din profil"
+              title={user ? "Schimbă adresa de reședință din profil" : "Zonă de intervenție: Sibiu"}
             >
               <SvgIcon name="pin" size={12} />
-              <span>{user.neighborhood || "Sibiu"}</span>
+              <span>{user?.neighborhood || "Sibiu"}</span>
             </button>
           </div>
           <p className="greeting-sub">Ce dorești să rezolvi astăzi?</p>
         </div>
-        <button
-          type="button"
-          aria-label="Deschide profilul"
-          className="home-avatar"
-          onClick={onProfile}
-        >
-          {user.initials || "LB"}
-        </button>
+        {user ? (
+          <button
+            type="button"
+            aria-label="Deschide profilul"
+            className="home-avatar"
+            onClick={onProfile}
+          >
+            {user.initials || "LB"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="home-login-btn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              borderRadius: 20,
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              color: "var(--text)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            onClick={onLogin}
+          >
+            <SvgIcon name="user" size={14} />
+            <span>Intră în cont</span>
+          </button>
+        )}
       </header>
 
       {/* Sleek Search Input */}
@@ -1051,6 +1269,8 @@ function BookingsList({
   onReview,
   onAcceptEstimate,
   onDeclineEstimate,
+  onCascade,
+  onPayDeposit,
 }: {
   bookings: ApiBooking[]
   loaded: boolean
@@ -1059,6 +1279,8 @@ function BookingsList({
   onReview: (b: ApiBooking) => void
   onAcceptEstimate: (b: ApiBooking) => void
   onDeclineEstimate: (b: ApiBooking) => void
+  onCascade?: (b: ApiBooking) => void
+  onPayDeposit?: (b: ApiBooking) => void
 }) {
   if (loaded && bookings.length === 0)
     return <EmptyBookings onFind={onFind} />
@@ -1077,13 +1299,29 @@ function BookingsList({
             onAcceptEstimate={onAcceptEstimate}
             onDeclineEstimate={onDeclineEstimate}
             footer={
-              <div className="request-actions" style={{ marginTop: 12 }}>
+              <div className="request-actions" style={{ marginTop: 12, flexWrap: "wrap", gap: 8 }}>
                 {b.can_review && (
                   <Pressable
                     className="primary-button compact"
                     onClick={() => onReview(b)}
                   >
                     Evaluează lucrarea
+                  </Pressable>
+                )}
+                {(b.status === "pending" || b.status === "refused") && onCascade && (
+                  <Pressable
+                    className="outline-button compact"
+                    onClick={() => onCascade(b)}
+                  >
+                    ⚡ Trimite la următorii 2 meșteri verificați
+                  </Pressable>
+                )}
+                {b.status === "accepted" && !(b.deposit_paid_ron && b.deposit_paid_ron > 0) && onPayDeposit && (
+                  <Pressable
+                    className="outline-button compact"
+                    onClick={() => onPayDeposit(b)}
+                  >
+                    🛡️ Garantează slotul (Avans 50 RON)
                   </Pressable>
                 )}
                 {(b.status === "pending" || b.status === "accepted" || b.status === "estimated") && (
@@ -1150,7 +1388,8 @@ function formatSibiuRouteQuery(rawAddr?: string | null, neighborhood?: string | 
   return normRoText(base).includes("sibiu") ? base : `${base}, Sibiu, România`
 }
 
-function hasCompletedClientOnboarding(user: ApiUser): boolean {
+function hasCompletedClientOnboarding(user: ApiUser | null): boolean {
+  if (!user) return false
   const missingData = !user.address?.trim() || !user.phone?.trim() || !user.email?.trim()
   if (missingData) return false
   if (onboardedClientIds.has(user.id)) return true
@@ -1167,23 +1406,29 @@ function hasCompletedClientOnboarding(user: ApiUser): boolean {
 
 function ClientOnboardingModal({
   user,
+  initialAddress,
+  initialPhone,
   onSaved,
+  onClose,
 }: {
   user: ApiUser
+  initialAddress?: string
+  initialPhone?: string
   onSaved: (user: ApiUser) => void
+  onClose?: () => void
 }) {
-  const [address, setAddress] = useState(user.address ?? "")
-  const [phone, setPhone] = useState(user.phone ?? "")
+  const [address, setAddress] = useState(user.address || initialAddress || "")
+  const [phone, setPhone] = useState(user.phone || initialPhone || "")
   const [email, setEmail] = useState(user.email ?? "")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [fields, setFields] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    setAddress(user.address ?? "")
-    setPhone(user.phone ?? "")
+    setAddress(user.address || initialAddress || "")
+    setPhone(user.phone || initialPhone || "")
     setEmail(user.email ?? "")
-  }, [user.id, user.address, user.phone, user.email])
+  }, [user.id, user.address, user.phone, user.email, initialAddress, initialPhone])
 
   const valid =
     address.trim().length >= 5 &&
@@ -1270,6 +1515,11 @@ function ClientOnboardingModal({
         >
           {busy ? "Se salvează..." : "Salvează și continuă în aplicație"}
         </Pressable>
+        {onClose && (
+          <Pressable className="modal-later" onClick={onClose}>
+            Anulează
+          </Pressable>
+        )}
       </div>
     </div>
   )
@@ -1350,12 +1600,53 @@ function ClientProfile({
   onLogout,
   onAction,
   onUserUpdated,
+  onLogin,
 }: {
-  user: ApiUser
+  user: ApiUser | null
   onLogout: () => void
   onAction: (action: DialogState) => void
   onUserUpdated: (user: ApiUser) => void
+  onLogin?: () => void
 }) {
+  if (!user) {
+    return (
+      <div className="screen-content simple-screen">
+        <div className="simple-header">
+          <span>Profil oaspete</span>
+          <small>Autentifică-te pentru a gestiona programările și datele de contact</small>
+        </div>
+        <div className="profile-card" style={{ textAlign: "center", padding: "32px 16px" }}>
+          <div
+            style={{
+              margin: "0 auto 16px",
+              width: 64,
+              height: 64,
+              borderRadius: "50%",
+              background: "var(--surface-muted, #f1f5f9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <SvgIcon name="user" size={32} />
+          </div>
+          <strong style={{ fontSize: 18, display: "block" }}>Bine ai venit pe REZOLV</strong>
+          <p style={{ color: "var(--text-muted)", fontSize: 14, margin: "8px 0 20px" }}>
+            Conectează-te pentru a vedea detaliile contului tău, adresele salvate și istoricul complet.
+          </p>
+          <button
+            type="button"
+            className="primary-button"
+            style={{ maxWidth: 240, margin: "0 auto" }}
+            onClick={onLogin}
+          >
+            Intră în cont
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const [editing, setEditing] = useState(false)
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null)
   const [address, setAddress] = useState(user.address ?? "")
@@ -1529,22 +1820,30 @@ function ServiceBookingFlow({
   initialProblem = "",
   initialPhotos = [],
   initialProId,
+  initialPro,
+  initialStep,
   user,
   onClose,
   onCreated,
+  onUserUpdated,
 }: {
   category: string
   categoryPrice: string
   initialProblem?: string
   initialPhotos?: string[]
   initialProId?: string
-  user?: ApiUser
+  initialPro?: ApiPro
+  initialStep?: BookingStep
+  user?: ApiUser | null
   onClose: () => void
   onCreated: () => void
+  onUserUpdated?: (user: ApiUser) => void
 }) {
-  const [step, setStep] = useState<BookingStep>("professionals")
+  const [step, setStep] = useState<BookingStep>(
+    initialStep ?? (initialPro ? "profile" : "professionals"),
+  )
   const [selectedProfessional, setSelectedProfessional] =
-    useState<Professional | null>(null)
+    useState<Professional | null>(initialPro ?? null)
   const [selectedService, setSelectedService] = useState<OfferedService | null>(
     null,
   )
@@ -1553,12 +1852,53 @@ function ServiceBookingFlow({
   const [clientPhone, setClientPhone] = useState(user?.phone || "")
   const [useCustomAddress, setUseCustomAddress] = useState(!user?.address)
   const [preferredWindow, setPreferredWindow] = useState("Mâine, 09:00–12:00")
+  const [selectedSlotStartAt, setSelectedSlotStartAt] = useState<number | undefined>(undefined)
+  const [liveSlots, setLiveSlots] = useState<ApiProSlot[]>([])
+  const [instantBook, setInstantBook] = useState(false)
   const [photos, setPhotos] = useState<string[]>(initialPhotos)
-  const [pros, setPros] = useState<ApiPro[] | null>(null)
+  const [pros, setPros] = useState<ApiPro[] | null>(initialPro ? [initialPro] : null)
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [pendingBooking, setPendingBooking] = useState<{
+    service_id: string
+    description: string
+    neighborhood?: string
+    address?: string
+    client_address?: string
+    phone?: string
+    client_phone?: string
+    urgency_level?: "urgent_today" | "normal"
+    preferred_window?: string
+    scheduled_for?: string
+    slot_start_at?: number
+    instant_book?: boolean
+    photos?: string[]
+  } | null>(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [onboardingUser, setOnboardingUser] = useState<ApiUser | null>(null)
   const offeredServices = selectedProfessional?.services ?? []
   const windows = ["Urgent Azi", "Mâine, 09:00–12:00", "Mâine, 13:00–17:00"]
+
+  useEffect(() => {
+    if (!selectedProfessional) {
+      setLiveSlots([])
+      return
+    }
+    let alive = true
+    api
+      .professionalSlots(selectedProfessional.slug || selectedProfessional.id)
+      .then((res) => {
+        if (!alive) return
+        if (res?.slots?.length) {
+          setLiveSlots(res.slots)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [selectedProfessional?.id, selectedProfessional?.slug])
 
   useEffect(() => {
     if (!useCustomAddress) {
@@ -1573,7 +1913,13 @@ function ServiceBookingFlow({
       .professionals(category)
       .then((r) => {
         if (!alive) return
-        setPros(r.professionals)
+        setPros((current) => {
+          if (initialPro) {
+            const exists = r.professionals.some((p) => p.id === initialPro.id)
+            return exists ? r.professionals : [initialPro, ...r.professionals]
+          }
+          return r.professionals
+        })
         if (initialProId && !selectedProfessional) {
           const match = r.professionals.find((p) => p.id === initialProId)
           if (match) {
@@ -1602,13 +1948,34 @@ function ServiceBookingFlow({
       })
       .catch((e) => {
         if (!alive) return
-        setPros([])
+        setPros(initialPro ? [initialPro] : [])
         setError(e.message)
       })
     return () => {
       alive = false
     }
-  }, [category, initialProId])
+  }, [category, initialProId, initialPro])
+
+  useEffect(() => {
+    if (step === "profile" && selectedProfessional) {
+      if (!selectedProfessional.hours || !selectedProfessional.recent_reviews) {
+        let alive = true
+        api
+          .professional(selectedProfessional.slug || selectedProfessional.id)
+          .then((res) => {
+            if (alive && res?.professional) {
+              setSelectedProfessional((prev) =>
+                prev ? { ...prev, ...res.professional } : res.professional,
+              )
+            }
+          })
+          .catch(() => {})
+        return () => {
+          alive = false
+        }
+      }
+    }
+  }, [step, selectedProfessional?.id, selectedProfessional?.slug])
 
   const addPhotos = (files: FileList | null) => {
     if (!files) return
@@ -1633,26 +2000,28 @@ function ServiceBookingFlow({
     : (user?.phone || clientPhone).trim()
   const neighborhood = inferSibiuZone(effectiveAddress, user?.neighborhood || "Hipodrom")
 
-  const submitBooking = async () => {
-    if (!selectedService || submitting) return
+  const doSubmit = async (payload: {
+    service_id: string
+    description: string
+    neighborhood?: string
+    address?: string
+    client_address?: string
+    phone?: string
+    client_phone?: string
+    urgency_level?: "urgent_today" | "normal"
+    preferred_window?: string
+    scheduled_for?: string
+    slot_start_at?: number
+    instant_book?: boolean
+    photos?: string[]
+  }) => {
     setSubmitting(true)
     setError("")
     try {
-      await api.createBooking({
-        service_id: selectedService.id,
-        description: problem.trim(),
-        neighborhood,
-        address: effectiveAddress || undefined,
-        client_address: effectiveAddress || undefined,
-        phone: effectivePhone || undefined,
-        client_phone: effectivePhone || undefined,
-        urgency_level: preferredWindow === "Urgent Azi" ? "urgent_today" : "normal",
-        preferred_window: preferredWindow,
-        scheduled_for: preferredWindow,
-        photos,
-      })
+      await api.createBooking(payload)
       onCreated()
       setStep("success")
+      setPendingBooking(null)
     } catch (e) {
       setError(e instanceof ApiFailure ? e.message : "Eroare neașteptată.")
     } finally {
@@ -1660,9 +2029,48 @@ function ServiceBookingFlow({
     }
   }
 
+  const submitBooking = async () => {
+    if (!selectedService || submitting) return
+    const payload = {
+      service_id: selectedService.id,
+      description: problem.trim(),
+      neighborhood,
+      address: effectiveAddress || undefined,
+      client_address: effectiveAddress || undefined,
+      phone: effectivePhone || undefined,
+      client_phone: effectivePhone || undefined,
+      urgency_level: (preferredWindow === "Urgent Azi" ? "urgent_today" : "normal") as "urgent_today" | "normal",
+      preferred_window: preferredWindow,
+      scheduled_for: preferredWindow,
+      slot_start_at: selectedSlotStartAt,
+      instant_book: Boolean(instantBook && selectedService.instant_book),
+      photos,
+    }
+
+    if (!user) {
+      setPendingBooking(payload)
+      setShowAuthModal(true)
+      return
+    }
+
+    await doSubmit(payload)
+  }
+
   const goBack = () => {
-    if (step === "profile") setStep("professionals")
-    if (step === "services") setStep("professionals")
+    if (step === "profile") {
+      if (initialStep === "profile") {
+        onClose()
+      } else {
+        setStep("professionals")
+      }
+    }
+    if (step === "services") {
+      if (initialStep === "profile" && selectedProfessional) {
+        setStep("profile")
+      } else {
+        setStep("professionals")
+      }
+    }
     if (step === "details") setStep("services")
     if (step === "review") setStep("details")
   }
@@ -1676,6 +2084,18 @@ function ServiceBookingFlow({
   const showProfile = (professional: Professional) => {
     setSelectedProfessional(professional)
     setStep("profile")
+    if (!professional.hours || !professional.recent_reviews) {
+      api
+        .professional(professional.slug || professional.id)
+        .then((res) => {
+          if (res?.professional) {
+            setSelectedProfessional((prev) =>
+              prev ? { ...prev, ...res.professional } : res.professional,
+            )
+          }
+        })
+        .catch(() => {})
+    }
   }
 
   const progress =
@@ -1789,7 +2209,90 @@ function ServiceBookingFlow({
                 <i>✓</i>
               </div>
               <strong>{selectedProfessional.name}</strong>
-              <span>Specialist în {category.toLocaleLowerCase("ro")}</span>
+              <span>
+                {selectedProfessional.headline || `Specialist în ${category.toLocaleLowerCase("ro")}`}
+              </span>
+
+              {/* Company & CUI Verification Badge & Promoted */}
+              {(selectedProfessional.company_name || selectedProfessional.cui || selectedProfessional.promoted) && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    flexWrap: "wrap",
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  {selectedProfessional.company_name && (
+                    <strong>{selectedProfessional.company_name}</strong>
+                  )}
+                  {selectedProfessional.company_name && selectedProfessional.cui && <span>•</span>}
+                  {selectedProfessional.cui && (
+                    <span style={{ fontFamily: "var(--font-mono, monospace)" }}>
+                      CUI: {selectedProfessional.cui}
+                    </span>
+                  )}
+                  {(selectedProfessional.cui_verified ?? selectedProfessional.verified) && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "var(--green, #15803d)",
+                        background: "var(--soft-green, rgba(21, 128, 61, 0.1))",
+                        padding: "2px 6px",
+                        borderRadius: "var(--radius-xs, 4px)",
+                        border: "1px solid rgba(21, 128, 61, 0.2)",
+                      }}
+                    >
+                      <SvgIcon name="check" size={11} /> CUI Verificat
+                    </span>
+                  )}
+                  {selectedProfessional.caen_label && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "var(--navy, #0f172a)",
+                        background: "var(--soft-blue, rgba(37, 99, 235, 0.1))",
+                        padding: "2px 6px",
+                        borderRadius: "var(--radius-xs, 4px)",
+                        border: "1px solid rgba(37, 99, 235, 0.2)",
+                      }}
+                    >
+                      📋 {selectedProfessional.caen_label}
+                    </span>
+                  )}
+                  {selectedProfessional.promoted && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 3,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "var(--amber, #b45309)",
+                        background: "rgba(245, 158, 11, 0.12)",
+                        padding: "2px 6px",
+                        borderRadius: "var(--radius-xs, 4px)",
+                        border: "1px solid rgba(245, 158, 11, 0.25)",
+                      }}
+                    >
+                      ★ Recomandat
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="profile-stats">
                 <div>
                   <b>{selectedProfessional.rating}</b>
@@ -1800,24 +2303,251 @@ function ServiceBookingFlow({
                   <small>lucrări</small>
                 </div>
                 <div>
-                  <b>{selectedProfessional.experience.split(" ")[0]}</b>
+                  <b>{selectedProfessional.experience_years || selectedProfessional.experience.split(" ")[0]}</b>
                   <small>ani experiență</small>
                 </div>
               </div>
             </div>
+
+            {/* Bio Card */}
             <div className="profile-detail-card">
               <strong>Despre meșter</strong>
-              <p>
-                Profesionist verificat de echipa REZOLV, cu identitatea și
-                calificările validate. Oferă deviz clar înainte de începerea
-                lucrării și garanție pentru serviciile efectuate.
+              <p style={{ whiteSpace: "pre-line" }}>
+                {selectedProfessional.bio ||
+                  "Profesionist verificat de echipa REZOLV, cu identitatea și calificările validate. Oferă deviz clar înainte de începerea lucrării și garanție pentru serviciile efectuate în Sibiu."}
               </p>
               <div className="verified-row">
                 <span>✓ Identitate verificată</span>
                 <span>✓ Calificări validate</span>
+                {(selectedProfessional.cui_verified ?? selectedProfessional.verified) && (
+                  <span>✓ CUI Verificat</span>
+                )}
                 <span>✓ {selectedProfessional.reviews} recenzii reale</span>
               </div>
             </div>
+
+            {/* Service Zones Card */}
+            {selectedProfessional.zones && selectedProfessional.zones.length > 0 && (
+              <div className="profile-detail-card">
+                <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <SvgIcon name="pin" size={14} /> Zone deservite în Sibiu
+                </strong>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {selectedProfessional.zones.map((zone) => (
+                    <span
+                      key={zone}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 500,
+                        padding: "3px 8px",
+                        background: "var(--surface, #ffffff)",
+                        border: "1px solid var(--border, #e2e8f0)",
+                        borderRadius: "var(--radius-xs, 4px)",
+                        color: "var(--text-primary, #0f172a)",
+                      }}
+                    >
+                      {zone}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Operating Hours Card */}
+            {selectedProfessional.hours && Object.keys(selectedProfessional.hours).length > 0 && (
+              <div className="profile-detail-card">
+                <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <SvgIcon name="clock" size={14} /> Program de lucru
+                </strong>
+                <div style={{ display: "grid", gap: 6, marginTop: 8, fontSize: 12 }}>
+                  {Object.entries(selectedProfessional.hours).map(([day, hrs]) => (
+                    <div
+                      key={day}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "4px 0",
+                        borderBottom: "1px solid var(--border, #e2e8f0)",
+                      }}
+                    >
+                      <span style={{ color: "var(--text-secondary, #64748b)" }}>{day}</span>
+                      <b
+                        style={{
+                          fontFamily: "var(--font-mono, monospace)",
+                          color: hrs.toLowerCase().includes("închis")
+                            ? "var(--text-muted, #94a3b8)"
+                            : "var(--text-primary, #0f172a)",
+                        }}
+                      >
+                        {hrs}
+                      </b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Reviews Card */}
+            <div className="profile-detail-card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <SvgIcon name="star" size={14} /> Recenzii recente
+                </strong>
+                <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {selectedProfessional.reviews} {selectedProfessional.reviews === 1 ? "recenzie" : "recenzii"}
+                </span>
+              </div>
+
+              {selectedProfessional.recent_reviews && selectedProfessional.recent_reviews.length > 0 ? (
+                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                  {selectedProfessional.recent_reviews.map((rev, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: "8px 10px",
+                        background: "var(--surface, #ffffff)",
+                        border: "1px solid var(--border, #e2e8f0)",
+                        borderRadius: "var(--radius-sm, 6px)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 4,
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>{rev.author}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                          {rev.ago || rev.relative_time || ""}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                        <span style={{ color: "var(--amber, #f59e0b)", fontSize: 12 }}>
+                          {"★".repeat(Math.round(rev.rating))}
+                          {"☆".repeat(Math.max(0, 5 - Math.round(rev.rating)))}
+                        </span>
+                        <small style={{ color: "var(--text-muted)", fontSize: 11 }}>
+                          {Number(rev.rating).toFixed(1)}
+                        </small>
+                      </div>
+                      {rev.comment && (
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: 12,
+                            color: "var(--text-secondary)",
+                            lineHeight: "16px",
+                          }}
+                        >
+                          „{rev.comment}”
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+                  {selectedProfessional.reviews > 0
+                    ? "Meșterul are calificativ pozitiv din lucrările finalizate."
+                    : "Încă nu există recenzii scrise pentru acest meșter."}
+                </div>
+              )}
+
+              {/* Wave 2.2: External Verified Reviews */}
+              {selectedProfessional.external_reviews && selectedProfessional.external_reviews.length > 0 && (
+                <div style={{ marginTop: 12, borderTop: "1px dashed var(--border)", paddingTop: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
+                    ✓ Recenzii externe verificate (Google Maps / Facebook)
+                  </div>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {selectedProfessional.external_reviews.map((ext) => (
+                      <div
+                        key={ext.id}
+                        style={{
+                          padding: "7px 10px",
+                          background: "var(--surface-subtle, #f8fafc)",
+                          border: "1px solid var(--border, #e2e8f0)",
+                          borderRadius: 6,
+                          fontSize: 12,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <strong>{ext.author}</strong>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: "1px 5px",
+                              borderRadius: 4,
+                              background: "var(--soft-blue)",
+                              color: "var(--navy)",
+                            }}
+                          >
+                            {ext.source_label || "Verificat ✓"}
+                          </span>
+                        </div>
+                        <p style={{ margin: "4px 0 0", color: "var(--text-secondary)", fontSize: 11.5 }}>
+                          „{ext.comment}”
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Wave 2.2: Before / After Photo Portfolio */}
+            {selectedProfessional.portfolio_photos && selectedProfessional.portfolio_photos.length > 0 && (
+              <div className="profile-detail-card">
+                <strong style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  📸 Portofoliu lucrări „Înainte / După” în Sibiu
+                </strong>
+                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                  {selectedProfessional.portfolio_photos.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        padding: 10,
+                        background: "var(--surface, #fff)",
+                        border: "1px solid var(--border, #e2e8f0)",
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <strong style={{ fontSize: 12 }}>{item.title}</strong>
+                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>📍 {item.category}</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        {item.before_url && (
+                          <div>
+                            <img
+                              src={item.before_url}
+                              alt={`Înainte - ${item.title}`}
+                              style={{ width: "100%", borderRadius: 6, display: "block" }}
+                            />
+                            <small style={{ fontSize: 10, color: "var(--text-muted)" }}>Înainte</small>
+                          </div>
+                        )}
+                        <div>
+                          <img
+                            src={item.after_url}
+                            alt={`După - ${item.title}`}
+                            style={{ width: "100%", borderRadius: 6, display: "block" }}
+                          />
+                          <small style={{ fontSize: 10, color: "var(--green, #15803d)", fontWeight: 600 }}>
+                            După intervenție ✓
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Pressable
               className="primary-button booking-primary"
               onClick={() => selectProfessional(selectedProfessional)}
@@ -1858,11 +2588,30 @@ function ServiceBookingFlow({
                     selectedService?.name === service.name ? "selected" : ""
                   }`}
                   key={service.name}
-                  onClick={() => setSelectedService(service)}
+                  onClick={() => {
+                    setSelectedService(service)
+                    setInstantBook(Boolean(service.instant_book))
+                  }}
                 >
                   <span className="service-radio" />
                   <div className="grow">
-                    <strong>{service.name}</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <strong>{service.name}</strong>
+                      {service.instant_book && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            background: "var(--soft-green, rgba(21, 128, 61, 0.12))",
+                            color: "var(--green, #15803d)",
+                          }}
+                        >
+                          ⚡ Instant Book
+                        </span>
+                      )}
+                    </div>
                     <small>{service.duration}</small>
                   </div>
                   <b>{service.price}</b>
@@ -2008,18 +2757,59 @@ function ServiceBookingFlow({
               )}
             </div>
 
+            {/* Wave 2.1: Instant Book option for standardized services */}
+            {selectedService.instant_book && (
+              <div
+                style={{
+                  background: instantBook ? "var(--soft-green, rgba(21, 128, 61, 0.1))" : "var(--surface-subtle)",
+                  border: `1px solid ${instantBook ? "rgba(21, 128, 61, 0.35)" : "var(--border-strong)"}`,
+                  borderRadius: "var(--radius-sm)",
+                  padding: "10px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 12, color: "var(--green, #15803d)", display: "block" }}>
+                    ⚡ Rezervare Instantă (fără așteptare deviz)
+                  </strong>
+                  <small style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                    Preț standardizat ({selectedService.price}) · blochează automat slotul în agenda meșterului
+                  </small>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={instantBook}
+                  onChange={(e) => setInstantBook(e.target.checked)}
+                  aria-label="Activează Instant Book"
+                  style={{ width: 18, height: 18, accentColor: "#15803d", cursor: "pointer" }}
+                />
+              </div>
+            )}
+
             <div className="booking-field-label" style={{ marginTop: 8 }}>
-              Când preferi intervenția?
+              Când preferi intervenția? {liveSlots.length > 0 ? "(Sloturi reale din agenda meșterului)" : ""}
             </div>
             <div className="chip-row">
-              {windows.map((w) => (
+              {(liveSlots.length > 0
+                ? [
+                    { label: "Urgent Azi", start_at: undefined },
+                    ...liveSlots.slice(0, 5).map((s) => ({ label: s.label, start_at: s.start_at })),
+                  ]
+                : windows.map((w) => ({ label: w, start_at: undefined }))
+              ).map((slotObj) => (
                 <Pressable
-                  key={w}
-                  className={`quick-chip ${preferredWindow === w ? "active" : ""}`}
-                  onClick={() => setPreferredWindow(w)}
+                  key={slotObj.label}
+                  className={`quick-chip ${preferredWindow === slotObj.label ? "active" : ""}`}
+                  onClick={() => {
+                    setPreferredWindow(slotObj.label)
+                    setSelectedSlotStartAt(slotObj.start_at)
+                  }}
                 >
                   <SvgIcon name="clock" size={13} />
-                  <span>{w}</span>
+                  <span>{slotObj.label}</span>
                 </Pressable>
               ))}
             </div>
@@ -2199,6 +2989,44 @@ function ServiceBookingFlow({
             </Pressable>
           </div>
         )}
+        {showAuthModal && (
+          <AuthModal
+            initialRole="client"
+            onClose={() => setShowAuthModal(false)}
+            onAuth={async (authedUser) => {
+              setShowAuthModal(false)
+              onUserUpdated?.(authedUser)
+              const payload = pendingBooking
+
+              if (!hasCompletedClientOnboarding(authedUser)) {
+                setOnboardingUser(authedUser)
+                setShowOnboarding(true)
+                return
+              }
+
+              if (payload) {
+                await doSubmit(payload)
+              }
+            }}
+          />
+        )}
+        {showOnboarding && onboardingUser && (
+          <ClientOnboardingModal
+            user={onboardingUser}
+            initialAddress={pendingBooking?.address || pendingBooking?.client_address}
+            initialPhone={pendingBooking?.phone || pendingBooking?.client_phone}
+            onClose={() => setShowOnboarding(false)}
+            onSaved={async (updatedUser) => {
+              setShowOnboarding(false)
+              onUserUpdated?.(updatedUser)
+              setOnboardingUser(null)
+              const payload = pendingBooking
+              if (payload) {
+                await doSubmit(payload)
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   )
@@ -2275,10 +3103,12 @@ function ClientApp({
   user,
   onLogout,
   onUserUpdated,
+  onLogin,
 }: {
-  user: ApiUser
+  user: ApiUser | null
   onLogout: () => void
   onUserUpdated: (user: ApiUser) => void
+  onLogin?: () => void
 }) {
   const [tab, setTab] = useState<ClientTab>("home")
   const [bookings, setBookings] = useState<ApiBooking[]>([])
@@ -2286,12 +3116,12 @@ function ClientApp({
   const [review, setReview] = useState<ApiBooking | null>(null)
   const [dialog, setDialog] = useState<DialogState | null>(null)
   const [showOnboarding, setShowOnboarding] = useState<boolean>(
-    () => !hasCompletedClientOnboarding(user),
+    () => Boolean(user && !hasCompletedClientOnboarding(user)),
   )
 
   useEffect(() => {
-    setShowOnboarding(!hasCompletedClientOnboarding(user))
-  }, [user.id, user.address, user.phone, user.email])
+    setShowOnboarding(Boolean(user && !hasCompletedClientOnboarding(user)))
+  }, [user?.id, user?.address, user?.phone, user?.email])
 
   const [bookingCategory, setBookingCategory] = useState<{
     name: string
@@ -2299,6 +3129,8 @@ function ClientApp({
     problem?: string
     photos?: string[]
     initialProId?: string
+    initialPro?: ApiPro
+    initialStep?: BookingStep
   } | null>(null)
   const openCategory = (
     name: string,
@@ -2306,9 +3138,25 @@ function ClientApp({
     problem?: string,
     photos?: string[],
     initialProId?: string,
-  ) => setBookingCategory({ name, price, problem, photos, initialProId })
+    initialPro?: ApiPro,
+    initialStep?: BookingStep,
+  ) =>
+    setBookingCategory({
+      name,
+      price,
+      problem,
+      photos,
+      initialProId,
+      initialPro,
+      initialStep,
+    })
 
   const refresh = useCallback(async () => {
+    if (!user) {
+      setBookings([])
+      setLoaded(true)
+      return
+    }
     try {
       setBookings((await api.bookings()).bookings)
     } catch (e) {
@@ -2316,13 +3164,83 @@ function ClientApp({
     } finally {
       setLoaded(true)
     }
-  }, [onLogout])
+  }, [user, onLogout])
 
   useEffect(() => {
+    if (!user) {
+      setBookings([])
+      setLoaded(true)
+      return
+    }
     refresh()
     const id = window.setInterval(refresh, 15000)
     return () => window.clearInterval(id)
-  }, [refresh])
+  }, [user, refresh])
+
+  useEffect(() => {
+    const handleRouting = () => {
+      if (typeof window === "undefined") return
+
+      // Clean path /pro/<slug>
+      const pathMatch = window.location.pathname.match(/^\/pro\/([a-zA-Z0-9_-]+)\/?$/)
+      const hashProMatch = window.location.hash.match(/^#\/pro\/([a-zA-Z0-9_-]+)/)
+      const proSlug = pathMatch
+        ? decodeURIComponent(pathMatch[1])
+        : hashProMatch
+          ? decodeURIComponent(hashProMatch[1])
+          : null
+
+      // Query params
+      const params = new URLSearchParams(window.location.search)
+      const proParam = proSlug || params.get("pro")?.trim()
+      const catParam = params.get("category")?.trim()
+
+      if (proParam) {
+        api.professional(proParam)
+          .then((res) => {
+            const pro = res.professional
+            const proCatName = pro.services?.[0]?.category || categories[0][0]
+            const cat = resolveCategory(proCatName) || categories[0]
+            setBookingCategory({
+              name: cat[0],
+              price: cat[1],
+              initialPro: pro,
+              initialStep: "profile",
+            })
+          })
+          .catch((err) => {
+            const is404 = err instanceof ApiFailure && err.status === 404
+            const msg = is404
+              ? "Meșterul căutat nu a fost găsit sau profilul este inactiv."
+              : "Nu am putut încărca profilul meșterului."
+            setDialog({
+              title: is404 ? "Meșter negăsit" : "Eroare de încărcare",
+              message: `${msg} Te redirecționăm către catalogul de meșteri din Sibiu.`,
+            })
+            if (window.location.pathname !== "/" || window.location.search) {
+              window.history.replaceState({}, "", "/")
+            }
+          })
+      } else if (catParam) {
+        const match = resolveCategory(catParam)
+        if (match) {
+          setBookingCategory({ name: match[0], price: match[1] })
+        } else {
+          setDialog({
+            title: "Categorie negăsită",
+            message: `Categoria „${catParam}” nu a fost găsită. Iată categoriile disponibile în Sibiu.`,
+          })
+          window.history.replaceState({}, "", "/")
+        }
+      } else {
+        setBookingCategory((prev) => (prev?.initialStep === "profile" ? null : prev))
+      }
+    }
+
+    handleRouting()
+    window.addEventListener("popstate", handleRouting)
+    return () => window.removeEventListener("popstate", handleRouting)
+  }, [])
 
   const cancel = (b: ApiBooking) =>
     setDialog({
@@ -2378,6 +3296,38 @@ function ClientApp({
       },
     })
 
+  const cascadeBooking = async (b: ApiBooking) => {
+    try {
+      const res = await api.cascadeBooking(b.id)
+      await refresh()
+      setDialog({
+        title: "Cerere redirecționată inteligent",
+        message: res.message,
+      })
+    } catch (e) {
+      setDialog({
+        title: "Redirecționare indisponibilă",
+        message: e instanceof ApiFailure ? e.message : "Încearcă din nou.",
+      })
+    }
+  }
+
+  const payDeposit = async (b: ApiBooking) => {
+    try {
+      const res = await api.payDeposit(b.id, 50)
+      await refresh()
+      setDialog({
+        title: "Avans rezervare confirmat",
+        message: res.message,
+      })
+    } catch (e) {
+      setDialog({
+        title: "Plata avansului nu a reușit",
+        message: e instanceof ApiFailure ? e.message : "Încearcă din nou.",
+      })
+    }
+  }
+
   return (
     <main className="app-shell">
       {tab === "home" && (
@@ -2390,21 +3340,50 @@ function ClientApp({
           onOpenBookings={() => setTab("bookings")}
           onAcceptEstimate={acceptEstimate}
           onDeclineEstimate={declineEstimate}
+          onLogin={onLogin}
         />
       )}
       {tab === "search" && (
         <Discovery onAction={setDialog} onBook={openCategory} />
       )}
       {tab === "bookings" && (
-        <BookingsList
-          bookings={bookings}
-          loaded={loaded}
-          onFind={() => setTab("search")}
-          onCancel={cancel}
-          onReview={setReview}
-          onAcceptEstimate={acceptEstimate}
-          onDeclineEstimate={declineEstimate}
-        />
+        !user ? (
+          <div className="screen-content simple-screen">
+            <div className="simple-header">
+              <span>Programările mele</span>
+              <small>Istoric și programări viitoare în Sibiu</small>
+            </div>
+            <div className="empty-state">
+              <div className="empty-icon">
+                <Icon file="c1dcb.svg" />
+                <span />
+              </div>
+              <strong>Nu ești conectat</strong>
+              <p>Conectează-te pentru a vedea cererile trimise, devizele primite și stadiul intervențiilor.</p>
+              {onLogin && (
+                <button
+                  type="button"
+                  className="primary-button compact"
+                  onClick={onLogin}
+                >
+                  Intră în cont
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <BookingsList
+            bookings={bookings}
+            loaded={loaded}
+            onFind={() => setTab("search")}
+            onCancel={cancel}
+            onReview={setReview}
+            onAcceptEstimate={acceptEstimate}
+            onDeclineEstimate={declineEstimate}
+            onCascade={cascadeBooking}
+            onPayDeposit={payDeposit}
+          />
+        )
       )}
       {tab === "profile" && (
         <ClientProfile
@@ -2412,6 +3391,7 @@ function ClientApp({
           onLogout={onLogout}
           onAction={setDialog}
           onUserUpdated={onUserUpdated}
+          onLogin={onLogin}
         />
       )}
       {tab !== "home" && tab !== "profile" && (
@@ -2426,9 +3406,9 @@ function ClientApp({
           ["bookings", "Programări", navIcons.bookings],
         ]}
       />
-      {showOnboarding && (
+      {Boolean(showOnboarding && user) && (
         <ClientOnboardingModal
-          user={user}
+          user={user!}
           onSaved={(updatedUser) => {
             onUserUpdated(updatedUser)
             setShowOnboarding(false)
@@ -2461,9 +3441,17 @@ function ClientApp({
           initialProblem={bookingCategory.problem}
           initialPhotos={bookingCategory.photos}
           initialProId={bookingCategory.initialProId}
+          initialPro={bookingCategory.initialPro}
+          initialStep={bookingCategory.initialStep}
           user={user}
-          onClose={() => setBookingCategory(null)}
+          onClose={() => {
+            setBookingCategory(null)
+            if (window.location.pathname !== "/" || window.location.search) {
+              window.history.pushState({}, "", "/")
+            }
+          }}
           onCreated={refresh}
+          onUserUpdated={onUserUpdated}
         />
       )}
     </main>
@@ -2532,7 +3520,7 @@ function ProHeader({
                   borderRadius: 6,
                 }}
               >
-                Pilot
+                ESSENTIAL
               </span>
             )}
           </div>
@@ -2712,6 +3700,11 @@ function QuoteModal({
 }
 
 type Dashboard = {
+  rating_avg?: number
+  rating_count?: number
+  response_speed?: string
+  active_leads_count?: number
+  revenue_month?: number
   week: { revenue: number; jobs: number; change_pct: number | null }
   plan: { plan: string; status: string; price_eur?: number; renews_in_days: number | null }
   pending: (ApiBooking & { photos?: string[] })[]
@@ -2727,6 +3720,7 @@ function ProDashboard({
   onQuote,
   onRefuse,
   onComplete,
+  onOnMyWay,
   onAction,
   onGoServices,
   onProfile,
@@ -2738,6 +3732,7 @@ function ProDashboard({
   onQuote: (booking: ApiBooking) => void
   onRefuse: (booking: ApiBooking) => void
   onComplete: (booking: ApiBooking) => void
+  onOnMyWay?: (booking: ApiBooking) => void
   onAction: (action: DialogState) => void
   onGoServices: () => void
   onProfile: () => void
@@ -2746,12 +3741,13 @@ function ProDashboard({
 }) {
   const fmt = (n: number) => n.toLocaleString("ro-RO")
   const pending = data?.pending ?? []
+  const activeLeadsCount = data?.active_leads_count ?? pending.length
   const planLabel =
     data?.plan.status === "trial"
-      ? "Perioadă de probă (Sibiu Pilot)"
+      ? "Perioadă de probă (14 zile gratuit • 0% comision)"
       : data?.plan.status === "past_due"
         ? "Plată restantă"
-        : "Abonament B2B Activ (39 EUR/lună • 0% comision)"
+        : `Abonament ${data?.plan.plan === "essential" ? "Essential" : "Pro"} Activ (${data?.plan.plan === "essential" ? "49 RON/lună (10 EUR)" : "195 RON/lună (39 EUR)"} • 0% comision)`
   return (
     <div className="screen-content pro-dashboard">
       <ProHeader
@@ -2781,10 +3777,17 @@ function ProDashboard({
           </div>
           <div className="kpi-badge">
             <SvgIcon name="star" size={12} />
-            <span>4.9 rating</span>
+            <span>
+              {(data?.rating_avg ?? 5.0).toFixed(1)} rating
+              {data?.rating_count ? ` (${data.rating_count})` : ""}
+            </span>
+          </div>
+          <div className="kpi-badge">
+            <SvgIcon name="clock" size={12} />
+            <span>Răspuns {data?.response_speed || "~15 min"}</span>
           </div>
           <div className="kpi-badge kpi-plan-badge">
-            <span>Abonament activ</span>
+            <span>{data?.plan.status === "trial" ? "Perioadă de probă" : "Abonament activ"}</span>
           </div>
         </div>
       </section>
@@ -2792,7 +3795,7 @@ function ProDashboard({
         <div className="section-heading">
           <div>
             Cereri și devize{" "}
-            <span className="count">{pending.length} active</span>
+            <span className="count">{activeLeadsCount} active</span>
           </div>
           <Pressable
             className="section-link aqua"
@@ -2878,7 +3881,7 @@ function ProDashboard({
                   className="pro-btn-quote"
                   onClick={() => onQuote(b)}
                 >
-                  <SvgIcon name="document" size={13} />
+                  <SvgIcon name="file" size={13} />
                   <span>{b.status === "estimated" ? "Modifică devizul" : "Trimite deviz"}</span>
                 </button>
                 <button
@@ -2964,6 +3967,28 @@ function ProDashboard({
                         <SvgIcon name="pin" size={12} />
                         <span className="nowrap">Rută Maps</span>
                       </a>
+                      {onOnMyWay && (
+                        <button
+                          type="button"
+                          className="chip-btn-clean"
+                          onClick={() => onOnMyWay(b)}
+                          style={
+                            b.on_my_way_at
+                              ? {
+                                  background: "var(--soft-green, rgba(21, 128, 61, 0.12))",
+                                  color: "var(--green, #15803d)",
+                                  borderColor: "rgba(21, 128, 61, 0.3)",
+                                }
+                              : undefined
+                          }
+                        >
+                          <span className="nowrap">
+                            {b.on_my_way_at
+                              ? `🚗 Pe drum (~${b.eta_minutes || 20}m)`
+                              : "🚗 Plecat spre client (ETA 20 min)"}
+                          </span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="complete-chip-btn"
@@ -3121,14 +4146,14 @@ function Subscription({
   const days = sub?.renews_in_days
 
   const choose = (target: "essential" | "pro") => {
-    const priceLabel = target === "pro" ? "39 EUR (195 RON)" : "49 RON"
-    const name = target === "pro" ? "CRM Pro Sibiu (39 EUR)" : "Start Pilot"
+    const priceLabel = target === "pro" ? "195 RON/lună (39 EUR)" : "49 RON/lună (10 EUR)"
+    const name = target === "pro" ? "Abonament Pro" : "Abonament Essential"
     const card = sub?.payment_method
     onAction({
       title: `Treci la ${name}`,
       message: card
-        ? `Confirmi activarea planului ${name} pentru ${priceLabel} pe lună (0% comision per lucrare)? Plata se face cu cardul ${card.brand.toUpperCase()} •••• ${card.last4}.`
-        : `Confirmi activarea planului ${name} pentru ${priceLabel} pe lună (0% comision per lucrare)?`,
+        ? `Confirmi activarea planului ${name} pentru ${priceLabel} (0% comision per lucrare)? Plata se face cu cardul ${card.brand.toUpperCase()} •••• ${card.last4}.`
+        : `Confirmi activarea planului ${name} pentru ${priceLabel} (0% comision per lucrare)?`,
       confirmLabel: "Confirmă abonamentul",
       onConfirm: async () => {
         try {
@@ -3153,18 +4178,19 @@ function Subscription({
     <div className="screen-content simple-screen subscription-screen">
       <div className="simple-header">
         <span>Abonament B2B Meșter</span>
-        <small>Model SaaS (0% comision per lucrare • fără dezintermediere)</small>
+        <small>14 zile gratuit • 0% comision per lucrare • Fără dezintermediere</small>
       </div>
       <div className="pricing-card premium">
-        <div className="promoted-ribbon">Standard B2B Sibiu</div>
+        <div className="promoted-ribbon">14 zile gratuit · 0% comision</div>
         <div className="tier-head">
-          <span>Abonament B2B complet</span>
-          <b>0% comision</b>
+          <span>Abonament Pro</span>
+          <b>{plan === "pro" ? (sub?.status === "trial" ? "Probă 14 zile" : "Activ") : "0% comision"}</b>
         </div>
         <div className="price">
-          39 EUR <small>/ lună (195 RON)</small>
+          195 RON <small>/ lună (39 EUR)</small>
         </div>
         <ul>
+          <li><strong>14 zile gratuit</strong> — testează fără niciun risc</li>
           <li>0% comision per lucrare — încasezi 100% direct de la client</li>
           <li>Agendă de teren B2B cu blocare automată a intervalului</li>
           <li>Remindere SMS automate (24h și 2h înainte de lucrare)</li>
@@ -3176,18 +4202,21 @@ function Subscription({
           disabled={!sub || plan === "pro"}
           onClick={() => choose("pro")}
         >
-          {plan === "pro" ? "Abonament 39 EUR/lună activ" : "Activează planul 39 EUR / lună"}
+          {plan === "pro"
+            ? (sub?.status === "trial" ? "Planul Pro (probă 14 zile activă)" : "Abonament Pro activ (195 RON/lună)")
+            : "Activează planul Pro (195 RON / lună)"}
         </Pressable>
       </div>
       <div className="pricing-card">
         <div className="tier-head">
-          <span>Start Pilot Sibiu</span>
-          <b>{plan === "essential" ? "Activ" : ""}</b>
+          <span>Abonament Essential</span>
+          <b>{plan === "essential" ? (sub?.status === "trial" ? "Probă 14 zile" : "Activ") : ""}</b>
         </div>
         <div className="price">
-          49 <small>RON / lună (promoțional)</small>
+          49 RON <small>/ lună (10 EUR)</small>
         </div>
         <ul>
+          <li><strong>14 zile gratuit</strong> — acces complet la cereri de probă</li>
           <li>Calendar și cereri în cartierele din Sibiu</li>
           <li>Profil profesional verificat ONRC/ANAF</li>
           <li>0% comision pe lucrările efectuate</li>
@@ -3197,19 +4226,21 @@ function Subscription({
             className="outline-button"
             onClick={() =>
               onAction({
-                title: "Planul Start Pilot",
+                title: "Planul Essential",
                 message:
-                  days != null
-                    ? `Planul este activ și se reînnoiește în ${days} zile.`
-                    : "Planul este activ.",
+                  sub?.status === "trial"
+                    ? `Perioadă de probă activă (14 zile gratuit, 0% comision). Se reînnoiește în ${days ?? 14} zile.`
+                    : days != null
+                      ? `Planul Essential este activ și se reînnoiește în ${days} zile.`
+                      : "Planul Essential este activ.",
               })
             }
           >
-            Planul actual
+            {sub?.status === "trial" ? "Probă 14 zile activă" : "Planul actual"}
           </Pressable>
         ) : (
           <Pressable className="outline-button" disabled={!sub} onClick={() => choose("essential")}>
-            Treci la Start Pilot
+            Treci la Essential (49 RON / lună)
           </Pressable>
         )}
       </div>
@@ -3468,7 +4499,7 @@ function ProApp({
 
   const refresh = useCallback(async () => {
     try {
-      setData(await api.dashboard())
+      setData(await api.proDashboard())
     } catch (e) {
       if (e instanceof ApiFailure && e.status === 401) onLogout()
     }
@@ -3517,6 +4548,18 @@ function ProApp({
           onProfile={() => setTab("profile")}
           onNotifications={notifications}
           onRefresh={refresh}
+          onOnMyWay={async (b) => {
+            try {
+              const res = await api.onMyWay(b.id, 20)
+              await refresh()
+              setDialog({
+                title: "Client notificat prin WhatsApp / SMS",
+                message: res.message,
+              })
+            } catch (e) {
+              fail(e)
+            }
+          }}
           onRefuse={(b) =>
             setDialog({
               title: "Refuzi această cerere?",
@@ -3891,6 +4934,8 @@ export default function App() {
   const initialDemoUser =
     typeof window !== "undefined" ? ((window as any).__REZOLV_INITIAL_USER__ as ApiUser | undefined) : undefined
   const [user, setUser] = useState<ApiUser | null>(initialDemoUser ?? null)
+  const [userMode, setUserMode] = useState<"client" | "pro" | "admin">("client")
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [booting, setBooting] = useState(!initialDemoUser && Boolean(session.get()))
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null)
   const [isNotFound, setIsNotFound] = useState(() => {
@@ -3916,12 +4961,18 @@ export default function App() {
   const logout = useCallback(() => {
     session.clear()
     setUser(null)
+    setUserMode("client")
   }, [])
 
   const switchRole = useCallback(async (role: "client" | "pro" | "admin") => {
-    const res = await api.demoSwitch(role)
-    session.set(res.token)
-    setUser(res.user)
+    setUserMode(role)
+    try {
+      const res = await api.demoSwitch(role)
+      session.set(res.token)
+      setUser(res.user)
+    } catch {
+      setUser(null)
+    }
   }, [])
 
   if (booting) {
@@ -3942,7 +4993,10 @@ export default function App() {
       </a>
       <NetworkStatusBanner />
       {!(import.meta as any).env?.VITE_HIDE_DEMO_BAR && (
-        <InvestorBar currentRole={user?.role ?? null} onSwitchRole={switchRole} />
+        <InvestorBar
+          currentRole={user?.role ?? (userMode !== "client" ? userMode : null)}
+          onSwitchRole={switchRole}
+        />
       )}
       <div id="main-content">
         {isNotFound ? (
@@ -3953,22 +5007,54 @@ export default function App() {
               setIsNotFound(false)
             }}
           />
-        ) : !user ? (
-          <Login onAuth={setUser} />
-        ) : user.role === "admin" ? (
-          <SuperAdminDashboard
-            user={user}
-            onSwitchRole={(r) => switchRole(r)}
-            onLogout={logout}
-            onNotice={(msg) => alert(msg)}
-            onError={(title, msg) => alert(`${title}: ${msg}`)}
+        ) : user ? (
+          user.role === "admin" ? (
+            <SuperAdminDashboard
+              user={user}
+              onSwitchRole={(r) => switchRole(r)}
+              onLogout={logout}
+              onNotice={(msg) => alert(msg)}
+              onError={(title, msg) => alert(`${title}: ${msg}`)}
+            />
+          ) : user.role === "pro" ? (
+            <ProApp user={user} onLogout={logout} onUserUpdated={setUser} />
+          ) : (
+            <ClientApp
+              user={user}
+              onLogout={logout}
+              onUserUpdated={setUser}
+              onLogin={() => setShowAuthModal(true)}
+            />
+          )
+        ) : userMode === "pro" || userMode === "admin" ? (
+          <Login
+            initialRole={userMode}
+            onAuth={(u) => {
+              setUser(u)
+              setUserMode(u.role)
+            }}
+            onClose={() => setUserMode("client")}
           />
-        ) : user.role === "client" ? (
-          <ClientApp user={user} onLogout={logout} onUserUpdated={setUser} />
         ) : (
-          <ProApp user={user} onLogout={logout} onUserUpdated={setUser} />
+          <ClientApp
+            user={null}
+            onLogout={logout}
+            onUserUpdated={setUser}
+            onLogin={() => setShowAuthModal(true)}
+          />
         )}
       </div>
+      {showAuthModal && (
+        <AuthModal
+          onAuth={(u) => {
+            setUser(u)
+            setUserMode(u.role)
+            setShowAuthModal(false)
+          }}
+          onClose={() => setShowAuthModal(false)}
+          initialRole="client"
+        />
+      )}
       <CookieConsentBanner onOpenLegal={setLegalDoc} />
       {legalDoc && <LegalModal kind={legalDoc} onClose={() => setLegalDoc(null)} />}
     </AppErrorBoundary>
