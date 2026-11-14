@@ -384,6 +384,16 @@ def _pro_ai_receptionist_sim(ctx, conn, user, p, b, q):
     return svc.handle_ai_receptionist_event(conn, user, b)
 
 
+@route("POST", "/api/webhooks/twilio-voice", auth=None)
+def _twilio_voice_webhook(ctx, conn, user, p, b, q):
+    return svc.handle_twilio_voice_webhook(conn, b or {}, q or {})
+
+
+@route("POST", "/api/webhooks/twilio-whatsapp", auth=None)
+def _twilio_whatsapp_webhook(ctx, conn, user, p, b, q):
+    return svc.handle_twilio_whatsapp_webhook(conn, b or {}, q or {})
+
+
 @route("POST", "/api/subscription/web2app-session")
 def _sub_web2app(ctx, conn, user, p, b, q):
     return svc.create_web2app_session(conn, user, b)
@@ -672,6 +682,7 @@ def make_handler(ctx):
                     return
 
                 body = {}
+                ctype = ""
                 if method in ("POST", "PUT", "PATCH", "DELETE"):
                     length = int(self.headers.get("Content-Length") or 0)
                     if length > config.MAX_BODY_BYTES:
@@ -679,12 +690,15 @@ def make_handler(ctx):
                     ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip()
                     raw = self.rfile.read(length) if length else b""
                     if raw:
-                        if ctype != "application/json":
+                        if ctype == "application/x-www-form-urlencoded" and url.path.startswith("/api/webhooks/"):
+                            body = {k: v[0] for k, v in parse_qs(raw.decode("utf-8", errors="replace")).items()}
+                        elif ctype != "application/json":
                             raise ApiError(415, "unsupported_media_type", "Se acceptă doar application/json.")
-                        try:
-                            body = json.loads(raw)
-                        except ValueError:
-                            raise ApiError(400, "bad_json", "JSON invalid.")
+                        else:
+                            try:
+                                body = json.loads(raw)
+                            except ValueError:
+                                raise ApiError(400, "bad_json", "JSON invalid.")
                 query = {k: v[0] for k, v in parse_qs(url.query).items()}
                 matched_path = False
                 for m, rx, fn, auth in R:
@@ -701,6 +715,18 @@ def make_handler(ctx):
                     c.ip = ip
                     res_payload = fn(c, conn, user, hit.groupdict(), body, query)
                     latency_ms = (time.perf_counter() - t0) * 1000
+
+                    if (
+                        url.path.startswith("/api/webhooks/twilio-")
+                        and isinstance(res_payload, dict)
+                        and "twiml" in res_payload
+                        and (ctype == "application/x-www-form-urlencoded" or query.get("format") == "xml")
+                    ):
+                        observability.record_request_metric(
+                            conn, req_id, method, url.path, 200, latency_ms, None, ip
+                        )
+                        self._send_text(200, res_payload["twiml"], "application/xml", req_id, latency_ms, cache_policy="no-store")
+                        return
 
                     cache_policy = "no-store"
                     etag = None

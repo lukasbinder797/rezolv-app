@@ -2430,6 +2430,116 @@ def handle_ai_receptionist_event(conn, user, data) -> dict:
     }
 
 
+def _resolve_webhook_pro_user(conn, data: dict, query: dict):
+    """Resolve the target professional for incoming Twilio Voice/WhatsApp webhooks."""
+    pro_id = (data or {}).get("pro_id") or (query or {}).get("pro_id")
+    to_phone = str((data or {}).get("To") or (data or {}).get("to") or "").replace("whatsapp:", "").strip()
+    row = None
+    if pro_id:
+        row = conn.execute("SELECT * FROM users WHERE id=? AND role='pro'", (pro_id,)).fetchone()
+    if not row and to_phone:
+        digits = re.sub(r"\D", "", to_phone)[-9:]
+        if len(digits) >= 8:
+            for u in conn.execute("SELECT * FROM users WHERE role='pro'").fetchall():
+                if digits in re.sub(r"\D", "", u["phone"] or ""):
+                    row = u
+                    break
+    if not row:
+        row = conn.execute(
+            "SELECT u.* FROM users u JOIN pro_profiles p ON p.user_id=u.id "
+            "WHERE u.role='pro' AND p.verification_status='verified' "
+            "ORDER BY p.ai_receptionist_enabled DESC, (p.plan='business') DESC, u.created_at ASC LIMIT 1"
+        ).fetchone()
+    if not row:
+        raise ApiError(404, "pro_not_found", "Nu există niciun meșter activ pentru preluarea apelului.")
+    return row
+
+
+def handle_twilio_voice_webhook(conn, data: dict, query: dict) -> dict:
+    """Live Twilio Voice Webhook (`POST /api/webhooks/twilio-voice`).
+    Triggered when a tradesperson's phone forwards an unanswered/busy GSM call (`*61*...#`) to their Twilio number.
+    1. Matches service & next free calendar slot via `handle_ai_receptionist_event`.
+    2. Dispatches instant WhatsApp/SMS quote + pre-reserved slot to caller.
+    3. Returns Romanian TwiML (`<Response><Say voice=\"Polly.Carmen\" language=\"ro-RO\">...</Say></Response>`).
+    """
+    data = data or {}
+    pro_user = _resolve_webhook_pro_user(conn, data, query or {})
+    p = _own_profile(conn, pro_user)
+    caller_phone = str(data.get("From") or data.get("caller_phone") or "+40 745 800 900").replace("whatsapp:", "").strip()
+    caller_name = str(data.get("CallerName") or data.get("caller_name") or "Client Apel Telefonic").strip()
+    speech = str(data.get("SpeechResult") or data.get("message") or data.get("client_message") or "").strip()
+    if len(speech) < 5:
+        speech = "Am sunat pentru o intervenție tehnică în Sibiu, când aveți primul loc liber?"
+    neighborhood = str(data.get("neighborhood") or _infer_sibiu_zone(speech) or "Hipodrom").strip()
+
+    ev = handle_ai_receptionist_event(
+        conn,
+        pro_user,
+        {
+            "channel": "missed_call",
+            "caller_name": caller_name,
+            "caller_phone": caller_phone,
+            "client_message": speech,
+            "neighborhood": neighborhood,
+        },
+    )
+    spoken_text = (
+        f"Salut! Ai sunat la {p['company_name']}, partener verificat REZOLV Sibiu. "
+        f"{pro_user['name']} este într-o intervenție acum și nu poate răspunde la telefon. "
+        f"Pentru {ev['matched_service']}, tariful orientativ este de la {ev['estimated_price_ron']} lei, "
+        f"iar primul interval liber în agendă este {ev['proposed_slot_label']}. "
+        f"Ți-am trimis deja toate detaliile pe WhatsApp și SMS și ți-am pre-rezervat locul. Mulțumim!"
+    )
+    twiml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<Response>\n"
+        f'  <Say voice="Polly.Carmen" language="ro-RO">{spoken_text}</Say>\n'
+        "</Response>"
+    )
+    return {
+        **ev,
+        "twiml": twiml,
+        "spoken_text": spoken_text,
+        "pro_id": pro_user["id"],
+        "company_name": p["company_name"],
+    }
+
+
+def handle_twilio_whatsapp_webhook(conn, data: dict, query: dict) -> dict:
+    """Live Twilio WhatsApp / Incoming SMS Webhook (`POST /api/webhooks/twilio-whatsapp`)."""
+    data = data or {}
+    pro_user = _resolve_webhook_pro_user(conn, data, query or {})
+    caller_phone = str(data.get("From") or data.get("caller_phone") or "+40 745 800 900").replace("whatsapp:", "").strip()
+    caller_name = str(data.get("ProfileName") or data.get("caller_name") or "Client WhatsApp").strip()
+    body_text = str(data.get("Body") or data.get("message") or data.get("client_message") or "").strip()
+    if len(body_text) < 5:
+        body_text = "Bună! Aveți un loc liber pentru o intervenție în Sibiu?"
+    neighborhood = str(data.get("neighborhood") or _infer_sibiu_zone(body_text) or "Hipodrom").strip()
+
+    ev = handle_ai_receptionist_event(
+        conn,
+        pro_user,
+        {
+            "channel": "whatsapp",
+            "caller_name": caller_name,
+            "caller_phone": caller_phone,
+            "client_message": body_text,
+            "neighborhood": neighborhood,
+        },
+    )
+    twiml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<Response>\n"
+        f"  <Message>{ev['ai_reply']}</Message>\n"
+        "</Response>"
+    )
+    return {
+        **ev,
+        "twiml": twiml,
+        "pro_id": pro_user["id"],
+    }
+
+
 # ----------------------------------------- Wave 3.2: B2C Invoice & RO e-Factura ANAF SPV (OUG 69/2024)
 def issue_booking_invoice(conn, user, bid, data=None) -> dict:
     """Wave 3.2: 1-Tap B2C Invoice & RO e-Factura ANAF SPV transmission (SmartBill / Oblio / UBL 2.1 XML)."""
@@ -2753,10 +2863,11 @@ def add_service(conn, user, data):
     if conn.execute("SELECT COUNT(*) FROM pro_services WHERE pro_id=?", (user["id"],)).fetchone()[0] >= 60:
         raise ApiError(409, "limit", "Ai atins numărul maxim de servicii.")
     est_min = parse_duration_minutes(duration)
+    instant_book = 1 if data.get("instant_book") else 0
     conn.execute(
-        "INSERT INTO pro_services (id,pro_id,category,name,price_from,price_unit,duration,est_duration_min,active) "
-        "VALUES (?,?,?,?,?,?,?,?,1)",
-        (new_id("s_"), user["id"], category, name, price, unit, duration, est_min),
+        "INSERT INTO pro_services (id,pro_id,category,name,price_from,price_unit,duration,est_duration_min,instant_book,active) "
+        "VALUES (?,?,?,?,?,?,?,?,?,1)",
+        (new_id("s_"), user["id"], category, name, price, unit, duration, est_min, instant_book),
     )
     observability.CACHE.invalidate()
     conn.commit()
@@ -3602,6 +3713,7 @@ def admin_white_glove_onboard(conn, user, data):
         v.errors.setdefault("cui", "CUI invalid (cifra de control modulo-11 incorectă).")
     primary_category = v.text("category", max=60, required=False, label="Categoria principală") or "Instalații Sanitare"
     experience_years = v.integer("experience_years", min=1, max=50, required=False, label="Ani experiență") or 8
+    plan = v.choice("plan", ("essential", "pro", "business"), required=False, label="Plan abonament") or "pro"
     plan_status = v.choice("plan_status", ("trial", "active"), required=False, label="Status abonament") or "active"
     v.done()
 
@@ -3627,12 +3739,13 @@ def admin_white_glove_onboard(conn, user, data):
     )
     ver.register(canon, company, True, f"{zones[0]}, Sibiu", primary_category)
     slug = generate_pro_slug(conn, company or name, uid)
+    price_eur = payments.PLANS.get(plan, payments.PLANS["pro"])["price_eur"]
     conn.execute(
         "INSERT INTO pro_profiles (user_id,slug,company_name,cui,headline,bio,experience_years,city,zones_json,hours_json,"
         "slot_step_minutes,verification_status,verification_note,verified_at,onboarded_by_admin,rating_avg,rating_count,"
         "jobs_completed,availability,distance_km,plan,plan_status,subscription_price_eur,plan_renews_at) "
         "VALUES (?,?,?,?,?,?,?,'Sibiu',?,?,30,'verified','White-Glove Onboarding de către Fondator (Sibiu)',?,1,5.0,1,0,"
-        "'Disponibil astăzi',2.0,'pro',?,39,?)",
+        "'Disponibil astăzi',2.0,?,?,?,?)",
         (
             uid,
             slug,
@@ -3644,7 +3757,9 @@ def admin_white_glove_onboard(conn, user, data):
             json.dumps(zones, ensure_ascii=False),
             json.dumps(hours, ensure_ascii=False),
             t,
+            plan,
             plan_status,
+            price_eur,
             t + 30 * DAY,
         ),
     )
@@ -3697,8 +3812,9 @@ def admin_update_pro_subscription(conn, user, pro_id, data):
             (plan_status, now_ts() + 30 * DAY, pro_id),
         )
     if plan in ("essential", "pro", "business"):
-        conn.execute("UPDATE pro_profiles SET plan=? WHERE user_id=?", (plan, pro_id))
-    analytics.track(conn, user["id"], "admin", "pro_subscription_updated", {"pro_id": pro_id, "plan_status": plan_status})
+        price_eur = payments.PLANS[plan]["price_eur"]
+        conn.execute("UPDATE pro_profiles SET plan=?, subscription_price_eur=? WHERE user_id=?", (plan, price_eur, pro_id))
+    analytics.track(conn, user["id"], "admin", "pro_subscription_updated", {"pro_id": pro_id, "plan": plan, "plan_status": plan_status})
     conn.commit()
     return admin_overview(conn, user)
 
@@ -3745,7 +3861,7 @@ def admin_review_pro(conn, user, pro_id, data):
     )
     observability.CACHE.invalidate()
     conn.commit()
-    return {"id": pro_id, "verification_status": status}
+    return {"id": pro_id, "verification_status": status, "overview": admin_overview(conn, user)}
 
 
 def admin_observability_report(conn, user) -> dict:

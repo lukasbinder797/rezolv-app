@@ -202,6 +202,80 @@ class TestWave3MediumTermMoatsAndPricing(unittest.TestCase):
         self.assertIn(inv["invoice_no"], xml_res["xml"])
         self.assertIn("0000000000000", xml_res["xml"])
 
+    def test_3_4_audit_fixes_and_live_twilio_webhooks(self):
+        """Verify audit fixes: Instant Book on add_service, Twilio Voice (TwiML XML) & WhatsApp webhooks, and Admin plan selection."""
+        pro_tok = self.login("mester@rezolv.ro", "pro")
+        admin_tok = self.login("admin@rezolv.ro", "admin")
+
+        # 1. Pro adds a new service with instant_book=True
+        s_svc, _ = self.call(
+            "POST",
+            "/api/pro/services",
+            {
+                "name": "Desfundare rapidă cu hidrojet",
+                "price_from": 240,
+                "duration": "1 oră",
+                "instant_book": True,
+            },
+            token=pro_tok,
+        )
+        self.assertEqual(s_svc, 200)
+        _, pro_pub = self.call("GET", "/api/professionals/binder-lukas-instalator")
+        added_svc = [s for s in pro_pub["professional"]["services"] if s["name"] == "Desfundare rapidă cu hidrojet"][0]
+        self.assertTrue(added_svc["instant_book"])
+
+        # 2. Live Twilio Voice Webhook via x-www-form-urlencoded returns Romanian TwiML XML and creates booking
+        form_raw = (
+            b"From=%2B40745998877&CallerName=Elena+Sibiu&SpeechResult=Scurgere+teava+in+Hipodrom"
+        )
+        st_voice, voice_parsed, voice_hdrs = server.dispatch_test_request(
+            self.ctx,
+            "POST",
+            "/api/webhooks/twilio-voice",
+            raw=form_raw,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        self.assertEqual(st_voice, 200, voice_parsed)
+        self.assertIn("application/xml", voice_hdrs.get("Content-Type", ""))
+        self.assertIn('<Say voice="Polly.Carmen" language="ro-RO">', voice_parsed["raw_text"])
+        self.assertIn("lei", voice_parsed["raw_text"])
+
+        # 3. Live Twilio WhatsApp Webhook via JSON
+        st_wa, wa_res = self.call(
+            "POST",
+            "/api/webhooks/twilio-whatsapp",
+            {
+                "From": "whatsapp:+40745334455",
+                "ProfileName": "Radu Popescu",
+                "Body": "Bună! Cât costă desfundarea în Turnișor și când aveți loc?",
+            },
+        )
+        self.assertEqual(st_wa, 200, wa_res)
+        self.assertTrue(wa_res["handled"])
+        self.assertIn("twiml", wa_res)
+        self.assertEqual(wa_res["booking"]["status"], "estimated")
+
+        # 4. Admin White-Glove Onboarding with 'business' plan
+        s_onb, onb_res = self.call(
+            "POST",
+            "/api/admin/pros/onboard",
+            {
+                "name": "Sorin Munteanu",
+                "email": "sorin.business@rezolv.ro",
+                "phone": "+40 745 777 888",
+                "company_name": "SORIN TERMO BUSINESS S.R.L.",
+                "cui": "RO14399840",
+                "category": "Instalații Sanitare",
+                "plan": "business",
+                "plan_status": "active",
+            },
+            token=admin_tok,
+        )
+        self.assertEqual(s_onb, 200, onb_res)
+        onb_pro = [p for p in onb_res["overview"]["professionals"] if p["email"] == "sorin.business@rezolv.ro"][0]
+        self.assertEqual(onb_pro["plan"], "business")
+        self.assertEqual(onb_pro["subscription_price_eur"], 69)
+
 
 if __name__ == "__main__":
     unittest.main()

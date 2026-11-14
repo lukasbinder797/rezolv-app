@@ -8,6 +8,7 @@ import {
   type ApiBooking,
   type ApiCalendarDay,
   type ApiEstimateOption,
+  type ApiPortfolioPhoto,
   type ApiPro,
   type ApiProSlot,
   type ApiQuickSlot,
@@ -1684,6 +1685,101 @@ function ProfileEditModal({
   )
 }
 
+function FeedbackModal({
+  user,
+  onClose,
+  onSubmitted,
+}: {
+  user: ApiUser
+  onClose: () => void
+  onSubmitted: (msg: string) => void
+}) {
+  const [category, setCategory] = useState<"idea" | "bug" | "praise" | "general">("idea")
+  const [rating, setRating] = useState(5)
+  const [message, setMessage] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+
+  const send = async () => {
+    if (message.trim().length < 5) {
+      setError("Te rugăm să scrii un mesaj de cel puțin 5 caractere.")
+      return
+    }
+    setBusy(true)
+    setError("")
+    try {
+      const res = await api.submitFeedback({
+        rating,
+        category,
+        message: message.trim(),
+        name: user.name,
+        email: user.email,
+        device_info: navigator.userAgent.slice(0, 80),
+      })
+      onSubmitted(res.message || "Mulțumim! Feedback-ul tău a ajuns direct la echipa REZOLV Sibiu.")
+      onClose()
+    } catch (e) {
+      setError(e instanceof ApiFailure ? e.message : "Nu am putut trimite feedback-ul.")
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal quote-modal">
+        <div className="modal-handle" />
+        <div className="modal-title">Trimite feedback / Raportează o problemă</div>
+        <p>Ajută-ne să facem REZOLV Sibiu mai bun pentru clienți și meșteri.</p>
+        <div className="label">Tipul mesajului</div>
+        <div className="chip-row" style={{ marginBottom: 8 }}>
+          {(
+            [
+              ["idea", "💡 Sugestie"],
+              ["bug", "🛠️ Eroare / Problemă"],
+              ["praise", "⭐ Apreciere"],
+              ["general", "💬 General"],
+            ] as const
+          ).map(([val, lbl]) => (
+            <Pressable
+              key={val}
+              className={`quick-chip ${category === val ? "active" : ""}`}
+              onClick={() => setCategory(val)}
+            >
+              {lbl}
+            </Pressable>
+          ))}
+        </div>
+        <div className="label">Evaluare generală ({rating} / 5)</div>
+        <div className="stars-picker" style={{ marginBottom: 8 }}>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <Pressable
+              key={n}
+              className={`star-pick ${n <= rating ? "on" : ""}`}
+              onClick={() => setRating(n)}
+            >
+              ★
+            </Pressable>
+          ))}
+        </div>
+        <div className="label">Detalii</div>
+        <Field
+          multiline
+          value={message}
+          onChange={setMessage}
+          placeholder="Ce ți-ar plăcea să îmbunătățim sau ce nu a funcționat?"
+        />
+        {error && <div className="form-error">{error}</div>}
+        <Pressable className="primary-button" disabled={busy} onClick={send}>
+          {busy ? "Se trimite..." : "Trimite feedback"}
+        </Pressable>
+        <Pressable className="modal-later" onClick={onClose}>
+          Anulează
+        </Pressable>
+      </div>
+    </div>
+  )
+}
+
 function ClientProfile({
   user,
   onLogout,
@@ -1737,6 +1833,7 @@ function ClientProfile({
   }
 
   const [editing, setEditing] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null)
   const [address, setAddress] = useState(user.address ?? "")
   const [phone, setPhone] = useState(user.phone ?? "")
@@ -1857,7 +1954,7 @@ function ClientProfile({
         </Pressable>
       </div>
 
-      {["Date personale", "Adrese salvate", "Ajutor și suport"].map((item) => (
+      {["Date personale", "Trimite feedback / Raportează o problemă", "Ajutor și suport"].map((item) => (
         <Pressable
           className="settings-row"
           key={item}
@@ -1873,7 +1970,9 @@ function ClientProfile({
                       "mailto:suport@rezolv.ro?subject=Suport client"
                   },
                 })
-              : setEditing(true)
+              : item === "Trimite feedback / Raportează o problemă"
+                ? setFeedbackOpen(true)
+                : setEditing(true)
           }
         >
           <span>{item}</span>
@@ -1890,6 +1989,13 @@ function ClientProfile({
         Deconectare
       </Pressable>
       {legalDoc && <LegalModal kind={legalDoc} onClose={() => setLegalDoc(null)} />}
+      {feedbackOpen && (
+        <FeedbackModal
+          user={user}
+          onClose={() => setFeedbackOpen(false)}
+          onSubmitted={(msg) => onAction({ title: "Feedback trimis", message: msg })}
+        />
+      )}
       {editing && (
         <ProfileEditModal
           user={user}
@@ -4383,11 +4489,12 @@ function AddServiceModal({
   onAdd,
 }: {
   onClose: () => void
-  onAdd: (name: string, price: number, duration: string) => Promise<void>
+  onAdd: (name: string, price: number, duration: string, instantBook: boolean) => Promise<void>
 }) {
   const [name, setName] = useState("")
   const [price, setPrice] = useState("")
   const [duration, setDuration] = useState("")
+  const [instantBook, setInstantBook] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const valid = name.trim().length >= 3 && Number(price) > 0
@@ -4396,7 +4503,7 @@ function AddServiceModal({
     setBusy(true)
     setError("")
     try {
-      await onAdd(name.trim(), Number(price), duration.trim())
+      await onAdd(name.trim(), Number(price), duration.trim(), instantBook)
     } catch (e) {
       setError(e instanceof ApiFailure ? e.message : "Eroare neașteptată.")
       setBusy(false)
@@ -4422,6 +4529,28 @@ function AddServiceModal({
         <div className="input-shell">
           <Field value={duration} onChange={setDuration} placeholder="Ex. 2–3 ore (opțional)" />
         </div>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 10,
+            padding: "8px 10px",
+            borderRadius: 8,
+            background: "var(--surface-subtle, #f8fafc)",
+            border: "1px solid var(--border, #e2e8f0)",
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={instantBook}
+            onChange={(e) => setInstantBook(e.target.checked)}
+          />
+          <span>⚡ Permite Rezervare Instantă (Instant Book la tarif fix)</span>
+        </label>
         {error && <div className="form-error">{error}</div>}
         <Pressable className="primary-button" disabled={!valid || busy} onClick={send}>
           {busy ? "Se publică..." : "Publică serviciul"}
@@ -4645,11 +4774,50 @@ function Subscription({
       </div>
       {sub?.payments?.length > 0 && (
         <div className="profile-detail-card">
-          <strong>Istoric facturi B2B</strong>
+          <strong>Istoric facturi B2B (RO e-Factura UBL 2.1)</strong>
           {sub.payments.slice(0, 5).map((p: any) => (
-            <p key={p.id}>
-              {p.invoice_no ?? "Eșuată"} • {p.amount_ron} RON • {p.status === "succeeded" ? "plătită" : "refuzată"}
-            </p>
+            <div
+              key={p.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 0",
+                borderBottom: "1px solid var(--border, #e2e8f0)",
+                fontSize: 12.5,
+              }}
+            >
+              <span>
+                {p.invoice_no ?? "Eșuată"} • {p.amount_ron} RON • {p.status === "succeeded" ? "plătită" : "refuzată"}
+              </span>
+              {p.status === "succeeded" && p.invoice_no && (
+                <button
+                  type="button"
+                  className="outline-button compact"
+                  style={{ minHeight: 26, padding: "2px 8px", fontSize: 11, marginTop: 0 }}
+                  onClick={async () => {
+                    try {
+                      const xmlData = await api.getInvoiceXml(p.id)
+                      const blob = new Blob([xmlData.xml], { type: "application/xml;charset=utf-8" })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement("a")
+                      a.href = url
+                      a.download = xmlData.filename || `${p.invoice_no}.xml`
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    } catch (e) {
+                      onAction({
+                        title: "Eroare XML e-Factura",
+                        message: e instanceof ApiFailure ? e.message : "Nu am putut descărca fișierul XML.",
+                      })
+                    }
+                  }}
+                >
+                  ⬇ XML e-Factura
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -4662,11 +4830,13 @@ function ProEditModal({
   user,
   onClose,
   onSaved,
+  onNotice,
 }: {
   kind: string
   user: ApiUser
   onClose: () => void
   onSaved: (user: ApiUser) => void
+  onNotice?: (msg: string) => void
 }) {
   const pro = user.pro!
   const [headline, setHeadline] = useState(pro.headline ?? "")
@@ -4682,10 +4852,98 @@ function ProEditModal({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
+  // Gap #1: Portfolio Before/After state
+  const [portfolio, setPortfolio] = useState<ApiPortfolioPhoto[]>([])
+  const [pfTitle, setPfTitle] = useState("")
+  const [pfBeforeCap, setPfBeforeCap] = useState("Înainte de intervenție")
+  const [pfAfterCap, setPfAfterCap] = useState("După finalizare")
+  const [pfBeforeUrl, setPfBeforeUrl] = useState("")
+  const [pfAfterUrl, setPfAfterUrl] = useState("")
+
+  // Gap #1: External Reviews state
+  const [extAuthor, setExtAuthor] = useState("")
+  const [extPhone, setExtPhone] = useState("+40 745 ")
+  const [extRating, setExtRating] = useState(5)
+  const [extSource, setExtSource] = useState("Google Maps Verificat")
+  const [extComment, setExtComment] = useState("")
+
+  // Gap #3: Payment Methods state
+  const [savedCard, setSavedCard] = useState<{ brand: string; last4: string; exp: string } | null>(null)
+  const [cardNumber, setCardNumber] = useState("4242 4242 4242 4242")
+  const [cardExp, setCardExp] = useState("12/28")
+  const [cardCvc, setCardCvc] = useState("424")
+
+  useEffect(() => {
+    if (kind === "Portofoliu Înainte / După") {
+      api.proPortfolio().then((r) => setPortfolio(r.portfolio)).catch(() => {})
+    } else if (kind === "Metode de plată") {
+      api.subscription().then((s) => setSavedCard(s.payment_method ?? null)).catch(() => {})
+    }
+  }, [kind])
+
+  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>, target: "before" | "after") => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      const dataUrl = await compressImage(f)
+      if (target === "before") setPfBeforeUrl(dataUrl)
+      else setPfAfterUrl(dataUrl)
+    } catch {
+      setError("Nu am putut procesa fotografia selectată.")
+    }
+  }
+
   const save = async () => {
     setBusy(true)
     setError("")
     try {
+      if (kind === "Portofoliu Înainte / După") {
+        if (pfTitle.trim().length < 3 || !pfBeforeUrl.trim() || !pfAfterUrl.trim()) {
+          setError("Completează titlul lucrării și ambele fotografii (Înainte și După).")
+          setBusy(false)
+          return
+        }
+        const r = await api.addProPortfolio({
+          title: pfTitle.trim(),
+          before_caption: pfBeforeCap.trim() || "Înainte",
+          after_caption: pfAfterCap.trim() || "După",
+          before_url: pfBeforeUrl.trim(),
+          after_url: pfAfterUrl.trim(),
+        })
+        setPortfolio(r.portfolio)
+        setPfTitle("")
+        setPfBeforeUrl("")
+        setPfAfterUrl("")
+        setBusy(false)
+        if (onNotice) onNotice("Lucrarea Înainte / După a fost adăugată în portofoliul tău public!")
+        return
+      }
+      if (kind === "Recenzii Google / Facebook") {
+        await api.addExternalReview({
+          author_name: extAuthor.trim(),
+          client_phone: extPhone.trim(),
+          rating: extRating,
+          comment: extComment.trim(),
+          source_label: extSource,
+        })
+        const meRes = await api.me()
+        onSaved(meRes.user)
+        onClose()
+        if (onNotice) onNotice("Recenzia externă verificată a fost importată în profilul tău!")
+        return
+      }
+      if (kind === "Metode de plată") {
+        const subRes = await api.savePaymentMethod({
+          number: cardNumber,
+          exp: cardExp,
+          cvc: cardCvc,
+        })
+        setSavedCard(subRes.payment_method ?? null)
+        onClose()
+        if (onNotice) onNotice("Cardul bancar B2B a fost salvat cu succes!")
+        return
+      }
+
       let res
       if (kind === "Date companie") res = await api.updateProProfile({ headline, bio })
       else if (kind === "Zone deservite")
@@ -4751,6 +5009,161 @@ function ProEditModal({
             <Field multiline value={hours} onChange={setHours} placeholder="Luni–Vineri: 08:00–18:00" />
           </>
         )}
+        {kind === "Portofoliu Înainte / După" && (
+          <>
+            <p>Fotografiile Înainte / După cresc rata de acceptare a devizelor în Sibiu.</p>
+            {portfolio.length > 0 && (
+              <div style={{ display: "grid", gap: 6, maxHeight: 160, overflowY: "auto", marginBottom: 10 }}>
+                {portfolio.map((pf) => (
+                  <div
+                    key={pf.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      border: "1px solid var(--border, #e2e8f0)",
+                      fontSize: 12,
+                    }}
+                  >
+                    <span>📸 {pf.title}</span>
+                    <button
+                      type="button"
+                      className="outline-button compact"
+                      style={{ minHeight: 24, padding: "2px 8px", fontSize: 11, marginTop: 0 }}
+                      onClick={async () => {
+                        try {
+                          const r = await api.deleteProPortfolio(pf.id)
+                          setPortfolio(r.portfolio)
+                        } catch {}
+                      }}
+                    >
+                      Șterge
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="label">Titlul lucrării (ex. Înlocuire tablou electric Hipodrom)</div>
+            <div className="input-shell">
+              <Field value={pfTitle} onChange={setPfTitle} placeholder="Ex. Montaj centrală în condensare Șelimbăr" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <div className="label">Foto Înainte (sau URL)</div>
+                <div className="input-shell">
+                  <Field value={pfBeforeUrl} onChange={setPfBeforeUrl} placeholder="/assets/..." />
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ fontSize: 11, marginTop: 4, width: "100%" }}
+                  onChange={(e) => handleUploadPhoto(e, "before")}
+                />
+              </div>
+              <div>
+                <div className="label">Foto După (sau URL)</div>
+                <div className="input-shell">
+                  <Field value={pfAfterUrl} onChange={setPfAfterUrl} placeholder="/assets/..." />
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ fontSize: 11, marginTop: 4, width: "100%" }}
+                  onChange={(e) => handleUploadPhoto(e, "after")}
+                />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <div className="label">Explicație Înainte</div>
+                <div className="input-shell">
+                  <Field value={pfBeforeCap} onChange={setPfBeforeCap} placeholder="Înainte" />
+                </div>
+              </div>
+              <div>
+                <div className="label">Explicație După</div>
+                <div className="input-shell">
+                  <Field value={pfAfterCap} onChange={setPfAfterCap} placeholder="După" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        {kind === "Recenzii Google / Facebook" && (
+          <>
+            <p>Importă o recenzie verificată telefonic de la un client din Sibiu.</p>
+            <div className="label">Numele clientului</div>
+            <div className="input-shell">
+              <Field value={extAuthor} onChange={setExtAuthor} placeholder="Ex. Marius Popa (Șelimbăr)" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <div className="label">Telefon client (pt. verificare)</div>
+                <div className="input-shell">
+                  <Field value={extPhone} onChange={setExtPhone} placeholder="+40 745 123 456" />
+                </div>
+              </div>
+              <div>
+                <div className="label">Sursă recenzie</div>
+                <div className="input-shell">
+                  <select
+                    className="field"
+                    value={extSource}
+                    onChange={(e) => setExtSource(e.target.value)}
+                  >
+                    <option value="Google Maps Verificat">Google Maps Verificat</option>
+                    <option value="Facebook Sibiu">Facebook Sibiu</option>
+                    <option value="Client Verificat Telefonic">Client Verificat Telefonic</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="label">Nota ({extRating} / 5 stele)</div>
+            <div className="stars-picker" style={{ marginBottom: 6 }}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Pressable key={n} className={`star-pick ${n <= extRating ? "on" : ""}`} onClick={() => setExtRating(n)}>
+                  ★
+                </Pressable>
+              ))}
+            </div>
+            <div className="label">Comentariul clientului</div>
+            <Field
+              multiline
+              value={extComment}
+              onChange={setExtComment}
+              placeholder="Ex. Punctual, a lucrat curat și a emis factura pe loc..."
+            />
+          </>
+        )}
+        {kind === "Metode de plată" && (
+          <>
+            <p>
+              {savedCard
+                ? `Card activ: ${savedCard.brand.toUpperCase()} •••• ${savedCard.last4} (exp. ${savedCard.exp}).`
+                : "Nu ai încă un card salvat pentru abonamentul B2B."}
+            </p>
+            <div className="label">Număr card bancar B2B</div>
+            <div className="input-shell">
+              <Field value={cardNumber} onChange={setCardNumber} placeholder="4242 4242 4242 4242" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div>
+                <div className="label">Expirare (LL/AA)</div>
+                <div className="input-shell">
+                  <Field value={cardExp} onChange={setCardExp} placeholder="12/28" />
+                </div>
+              </div>
+              <div>
+                <div className="label">CVC / CVV</div>
+                <div className="input-shell">
+                  <Field value={cardCvc} onChange={setCardCvc} placeholder="424" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
         {kind === "Documente și verificări" && (
           <>
             <p>
@@ -4774,7 +5187,17 @@ function ProEditModal({
         {error && <div className="form-error">{error}</div>}
         {!(kind === "Documente și verificări" && pro.verification_status === "verified") && (
           <Pressable className="primary-button" disabled={busy} onClick={save}>
-            {busy ? "Se salvează..." : kind === "Documente și verificări" ? "Retrimite la verificare" : "Salvează"}
+            {busy
+              ? "Se salvează..."
+              : kind === "Documente și verificări"
+                ? "Retrimite la verificare"
+                : kind === "Portofoliu Înainte / După"
+                  ? "Adaugă în portofoliu"
+                  : kind === "Recenzii Google / Facebook"
+                    ? "Importă recenzia"
+                    : kind === "Metode de plată"
+                      ? "Salvează cardul bancar"
+                      : "Salvează"}
           </Pressable>
         )}
         <Pressable className="modal-later" onClick={onClose}>
@@ -4799,21 +5222,8 @@ function ProProfile({
   onUserUpdated: (user: ApiUser) => void
 }) {
   const [editing, setEditing] = useState<string | null>(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [legalDoc, setLegalDoc] = useState<"privacy" | "terms" | null>(null)
-  const showCard = async () => {
-    try {
-      const s = await api.subscription()
-      const c = s.payment_method
-      onAction({
-        title: "Metode de plată",
-        message: c
-          ? `Card salvat: ${c.brand.toUpperCase()} •••• ${c.last4} (exp. ${c.exp}). Este folosit pentru abonamentul lunar B2B.`
-          : "Nu ai o metodă de plată salvată. Se va adăuga la prima plată de abonament.",
-      })
-    } catch (e) {
-      onAction({ title: "Eroare", message: e instanceof ApiFailure ? e.message : "Încearcă din nou." })
-    }
-  }
   return (
     <div className="screen-content simple-screen">
       <ProHeader user={user} onNotifications={onNotifications} />
@@ -4821,8 +5231,11 @@ function ProProfile({
         "Date companie",
         "Zone deservite",
         "Program de lucru",
+        "Portofoliu Înainte / După",
+        "Recenzii Google / Facebook",
         "Metode de plată",
         "Documente și verificări",
+        "Trimite feedback / Raportează o problemă",
         "Ajutor și suport",
       ].map((item) => (
         <Pressable
@@ -4838,8 +5251,8 @@ function ProProfile({
                     window.location.href = "mailto:parteneri@rezolv.ro?subject=Suport profesionist Sibiu"
                   },
                 })
-              : item === "Metode de plată"
-                ? showCard()
+              : item === "Trimite feedback / Raportează o problemă"
+                ? setFeedbackOpen(true)
                 : setEditing(item)
           }
         >
@@ -4857,12 +5270,20 @@ function ProProfile({
         Deconectare
       </Pressable>
       {legalDoc && <LegalModal kind={legalDoc} onClose={() => setLegalDoc(null)} />}
+      {feedbackOpen && (
+        <FeedbackModal
+          user={user}
+          onClose={() => setFeedbackOpen(false)}
+          onSubmitted={(msg) => onAction({ title: "Feedback trimis", message: msg })}
+        />
+      )}
       {editing && (
         <ProEditModal
           kind={editing}
           user={user}
           onClose={() => setEditing(null)}
           onSaved={onUserUpdated}
+          onNotice={(msg) => onAction({ title: "Profil actualizat", message: msg })}
         />
       )}
     </div>
@@ -5070,12 +5491,21 @@ function ProApp({
       {addingService && (
         <AddServiceModal
           onClose={() => setAddingService(false)}
-          onAdd={async (name, price, duration) => {
-            setCats((await api.addService({ name, price_from: price, duration: duration || undefined })).categories)
+          onAdd={async (name, price, duration, instantBook) => {
+            setCats(
+              (
+                await api.addService({
+                  name,
+                  price_from: price,
+                  duration: duration || undefined,
+                  instant_book: instantBook,
+                })
+              ).categories,
+            )
             setAddingService(false)
             setDialog({
               title: "Serviciu adăugat",
-              message: `${name} este acum activ și vizibil în profilul tău profesional.`,
+              message: `${name} este acum activ și vizibil în profilul tău profesional${instantBook ? " (cu ⚡ Rezervare Instantă activată)" : ""}.`,
             })
           }}
         />

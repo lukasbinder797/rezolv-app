@@ -31,6 +31,7 @@ export function SuperAdminDashboard({
     "Centru Istoric",
     "Turnișor",
   ])
+  const [plan, setPlan] = useState<"essential" | "pro" | "business">("pro")
   const [planStatus, setPlanStatus] = useState<"active" | "trial">("active")
   const [submitting, setSubmitting] = useState(false)
   const [cuiLookupNote, setCuiLookupNote] = useState<string | null>(null)
@@ -96,11 +97,12 @@ export function SuperAdminDashboard({
         cui,
         category,
         zones: selectedZones,
+        plan,
         plan_status: planStatus,
       })
       setData(res.overview)
       notify(
-        `Înrolare finalizată: ${res.onboarded.company_name} este acum public în Sibiu cu abonamentul de 39 EUR/lună.`,
+        `Înrolare finalizată: ${res.onboarded.company_name} este acum public în Sibiu (plan: ${plan.toUpperCase()} · ${planStatus}).`,
       )
       const rand = Math.floor(100 + Math.random() * 899)
       setEmail(`mester${rand}.sibiu@rezolv.ro`)
@@ -127,9 +129,30 @@ export function SuperAdminDashboard({
     try {
       const res = await api.adminUpdateProSubscription(proId, { plan_status: nextStatus })
       setData(res)
-      notify(`Statusul abonamentului B2B (39 EUR/lună) a fost actualizat la „${nextStatus}”.`)
+      notify(`Statusul abonamentului B2B a fost actualizat la „${nextStatus}”.`)
     } catch (e: any) {
       reportError("Eroare abonament", e?.message ?? "Nu am putut actualiza abonamentul.")
+    }
+  }
+
+  const handleChangePlan = async (proId: string, nextPlan: "essential" | "pro" | "business") => {
+    try {
+      const res = await api.adminUpdateProSubscription(proId, { plan: nextPlan })
+      setData(res)
+      notify(`Planul B2B al meșterului a fost schimbat în „${nextPlan.toUpperCase()}”.`)
+    } catch (e: any) {
+      reportError("Eroare plan", e?.message ?? "Nu am putut schimba nivelul de abonament.")
+    }
+  }
+
+  const handleReviewPro = async (proId: string, approve: boolean) => {
+    try {
+      const res = await api.adminReviewPro(proId, approve)
+      if (res.overview) setData(res.overview)
+      else await refresh()
+      notify(approve ? "CUI aprobat — meșterul este acum vizibil clienților din Sibiu!" : "Cererea de verificare CUI a fost respinsă.")
+    } catch (e: any) {
+      reportError("Eroare verificare CUI", e?.message ?? "Nu am putut actualiza verificarea.")
     }
   }
 
@@ -440,16 +463,29 @@ export function SuperAdminDashboard({
               </div>
             </div>
             <div className="form-group">
-              <span className="label">Abonament B2B (39 EUR/lună)</span>
-              <div className="input-shell">
-                <select
-                  className="field"
-                  value={planStatus}
-                  onChange={(e) => setPlanStatus(e.target.value as "active" | "trial")}
-                >
-                  <option value="active">Activ — 39 EUR/lună încasat</option>
-                  <option value="trial">Perioadă de probă 14 zile</option>
-                </select>
+              <span className="label">Pachet Abonament B2B</span>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <div className="input-shell">
+                  <select
+                    className="field"
+                    value={plan}
+                    onChange={(e) => setPlan(e.target.value as "essential" | "pro" | "business")}
+                  >
+                    <option value="essential">Essential (49 RON)</option>
+                    <option value="pro">Pro (195 RON)</option>
+                    <option value="business">Business AI (349 RON)</option>
+                  </select>
+                </div>
+                <div className="input-shell">
+                  <select
+                    className="field"
+                    value={planStatus}
+                    onChange={(e) => setPlanStatus(e.target.value as "active" | "trial")}
+                  >
+                    <option value="active">Activ</option>
+                    <option value="trial">Probă 14 zile</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -644,8 +680,8 @@ export function SuperAdminDashboard({
 
           <div className="admin-panel">
             <h3>Meșteri și ateliere în Sibiu ({data.professionals?.length ?? 0})</h3>
-            <p>Administrare abonamente B2B (39 EUR/lună) și verificare CUI.</p>
-            <div style={{ display: "grid", gap: 8, maxHeight: 260, overflowY: "auto" }}>
+            <p>Administrare nivel abonament B2B (`Essential 49 RON` / `Pro 195 RON` / `Business AI 349 RON`) și verificare CUI.</p>
+            <div style={{ display: "grid", gap: 8, maxHeight: 280, overflowY: "auto" }}>
               {(data.professionals ?? []).map((p: any) => (
                 <div
                   key={p.id}
@@ -653,6 +689,7 @@ export function SuperAdminDashboard({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
+                    flexWrap: "wrap",
                     gap: 10,
                     padding: "10px 12px",
                     border: "1px solid var(--border)",
@@ -661,13 +698,63 @@ export function SuperAdminDashboard({
                 >
                   <div>
                     <strong style={{ fontSize: 13, display: "block" }}>
-                      {p.name} — {p.company_name}
+                      {p.name} — {p.company_name}{" "}
+                      <span
+                        style={{
+                          fontSize: 10,
+                          padding: "1px 6px",
+                          borderRadius: 4,
+                          background: p.verification_status === "verified" ? "var(--soft-green)" : "var(--soft-amber, #fef3c7)",
+                          color: p.verification_status === "verified" ? "var(--green)" : "var(--amber, #b45309)",
+                        }}
+                      >
+                        {p.verification_status === "verified" ? "✓ CUI Verificat" : p.verification_status === "rejected" ? "CUI Respins" : "⏳ CUI în așteptare"}
+                      </span>
                     </strong>
                     <small className="tabular" style={{ color: "var(--text-secondary)", fontSize: 11 }}>
                       {p.cui} · {(p.zones ?? []).slice(0, 3).join(", ")} · {p.services_count} servicii
                     </small>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    {p.verification_status !== "verified" && (
+                      <>
+                        <button
+                          type="button"
+                          className="pressable primary-button compact"
+                          style={{ minHeight: 26, padding: "2px 8px", fontSize: 11, marginTop: 0 }}
+                          onClick={() => handleReviewPro(p.id, true)}
+                        >
+                          ✓ Aprobă CUI
+                        </button>
+                        {p.verification_status !== "rejected" && (
+                          <button
+                            type="button"
+                            className="pressable outline-button compact"
+                            style={{ minHeight: 26, padding: "2px 8px", fontSize: 11, marginTop: 0 }}
+                            onClick={() => handleReviewPro(p.id, false)}
+                          >
+                            Respinge
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <select
+                      aria-label={`Plan abonament pentru ${p.company_name}`}
+                      value={p.plan || "pro"}
+                      onChange={(e) => handleChangePlan(p.id, e.target.value as "essential" | "pro" | "business")}
+                      style={{
+                        fontSize: 11,
+                        padding: "3px 6px",
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <option value="essential">Essential (49 RON)</option>
+                      <option value="pro">Pro (195 RON)</option>
+                      <option value="business">Business AI (349 RON)</option>
+                    </select>
                     <span
                       className={`status ${p.plan_status === "active" ? "completed" : "pending"}`}
                       style={{ cursor: "pointer" }}
@@ -675,7 +762,7 @@ export function SuperAdminDashboard({
                         handleToggleSubscription(p.id, p.plan_status === "active" ? "trial" : "active")
                       }
                     >
-                      {p.plan_status === "active" ? "39 EUR activ" : "Perioadă probă"}
+                      {p.plan_status === "active" ? "Activ" : "Probă 14z"}
                     </span>
                   </div>
                 </div>

@@ -591,6 +591,8 @@ export const api = {
       data,
     ),
   subscription: () => request<any>("GET", "/api/subscription"),
+  savePaymentMethod: (card: { number: string; exp: string; cvc: string }) =>
+    request<any>("POST", "/api/payment-methods", { card }),
   checkout: (plan: string) => request<any>("POST", "/api/subscription/checkout", { plan }),
   getInvoiceXml: (paymentId: string) =>
     request<{ xml: string; invoice_number: string; filename: string }>("GET", `/api/payments/${paymentId}/invoice-xml`),
