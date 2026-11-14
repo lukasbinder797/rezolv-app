@@ -272,6 +272,16 @@ def _booking_deposit(ctx, conn, user, p, b, q):
     return svc.pay_booking_deposit(conn, ctx, user, p["id"], b)
 
 
+@route("POST", "/api/bookings/(?P<id>\\w+)/invoice")
+def _booking_invoice(ctx, conn, user, p, b, q):
+    return svc.issue_booking_invoice(conn, user, p["id"], b)
+
+
+@route("GET", "/api/bookings/(?P<id>\\w+)/invoice/xml")
+def _booking_invoice_xml(ctx, conn, user, p, b, q):
+    return svc.get_booking_invoice_xml(conn, user, p["id"])
+
+
 @route("POST", "/api/bookings/(?P<id>\\w+)/refuse")
 def _refuse(ctx, conn, user, p, b, q):
     return svc.refuse_booking(conn, user, p["id"])
@@ -357,6 +367,21 @@ def _pro_portfolio_del(ctx, conn, user, p, b, q):
 @route("POST", "/api/pro/external-reviews")
 def _pro_ext_review(ctx, conn, user, p, b, q):
     return svc.add_external_review(conn, user, b)
+
+
+@route("GET", "/api/pro/ai-receptionist")
+def _pro_ai_receptionist_get(ctx, conn, user, p, b, q):
+    return svc.get_ai_receptionist(conn, user)
+
+
+@route("PATCH", "/api/pro/ai-receptionist")
+def _pro_ai_receptionist_patch(ctx, conn, user, p, b, q):
+    return svc.update_ai_receptionist(conn, user, b)
+
+
+@route("POST", "/api/pro/ai-receptionist/simulate")
+def _pro_ai_receptionist_sim(ctx, conn, user, p, b, q):
+    return svc.handle_ai_receptionist_event(conn, user, b)
 
 
 @route("POST", "/api/subscription/web2app-session")

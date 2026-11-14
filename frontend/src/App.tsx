@@ -4,8 +4,10 @@ import {
   ApiFailure,
   compressImage,
   session,
+  type ApiAiReceptionistState,
   type ApiBooking,
   type ApiCalendarDay,
+  type ApiEstimateOption,
   type ApiPro,
   type ApiProSlot,
   type ApiQuickSlot,
@@ -682,7 +684,7 @@ function BookingCard({
 }: {
   booking: ApiBooking
   onClick?: () => void
-  onAcceptEstimate?: (b: ApiBooking) => void
+  onAcceptEstimate?: (b: ApiBooking, selectedTier?: string) => void
   onDeclineEstimate?: (b: ApiBooking) => void
   footer?: React.ReactNode
 }) {
@@ -690,6 +692,12 @@ function BookingCard({
   const isAccepted = booking.status === "accepted"
   const isCompleted = booking.status === "completed"
   const proPhone = booking.professional?.phone
+  const estOptions = booking.estimate?.options ?? []
+  const [chosenTier, setChosenTier] = useState<string>(
+    booking.estimate?.selected_tier || booking.selected_tier || "recomandat",
+  )
+  const chosenOption = estOptions.find((o) => o.tier === chosenTier) ?? estOptions[0]
+  const displayQuotePrice = chosenOption ? chosenOption.price_ron : booking.quote_price
 
   return (
     <div className={`clean-booking-card ${isEst ? "is-estimated" : isAccepted ? "is-accepted" : ""}`} onClick={onClick}>
@@ -750,7 +758,88 @@ function BookingCard({
             🛡️ Avans {booking.deposit_paid_ron} RON garantat
           </span>
         )}
+        {booking.invoice && (
+          <span
+            className="meta-chip"
+            style={{
+              background: "rgba(21, 128, 61, 0.12)",
+              color: "var(--green, #15803d)",
+              fontWeight: 600,
+            }}
+          >
+            🧾 Factură {booking.invoice.invoice_no} • ANAF SPV #{booking.invoice.spv_index}
+          </span>
+        )}
       </div>
+
+      {/* Wave 3.2: Good-Better-Best 3-Option Estimate Selector */}
+      {isEst && estOptions.length > 0 && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            marginTop: 10,
+            padding: 10,
+            borderRadius: 8,
+            background: "var(--surface-subtle, #f8fafc)",
+            border: "1px solid var(--border, #e2e8f0)",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
+            📦 Alege pachetul dorit din devizul cu 3 opțiuni:
+          </div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {estOptions.map((opt) => {
+              const active = (chosenOption?.tier || chosenTier) === opt.tier
+              return (
+                <button
+                  key={opt.tier}
+                  type="button"
+                  onClick={() => setChosenTier(opt.tier)}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    textAlign: "left",
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: active ? "2px solid var(--navy, #0f172a)" : "1px solid var(--border, #cbd5e1)",
+                    background: active ? "var(--soft-blue, #e0f2fe)" : "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>
+                      {opt.title}
+                      {opt.tier === "recomandat" && (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            fontSize: 10,
+                            padding: "1px 5px",
+                            borderRadius: 4,
+                            background: "var(--navy, #0f172a)",
+                            color: "#fff",
+                          }}
+                        >
+                          Recomandat ★
+                        </span>
+                      )}
+                    </div>
+                    {opt.description && (
+                      <div style={{ fontSize: 11, color: "var(--text-secondary, #64748b)", marginTop: 2 }}>
+                        {opt.description}
+                      </div>
+                    )}
+                  </div>
+                  <strong style={{ fontSize: 13, fontFamily: "var(--font-mono, monospace)", marginLeft: 8 }}>
+                    {opt.price_ron} RON
+                  </strong>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Wave 2.3: Live On-My-Way ETA Banner */}
       {isAccepted && booking.on_my_way_at && (
@@ -779,10 +868,10 @@ function BookingCard({
           <button
             type="button"
             className="primary-button cta-btn"
-            onClick={() => onAcceptEstimate(booking)}
+            onClick={() => onAcceptEstimate(booking, estOptions.length > 0 ? (chosenOption?.tier || chosenTier) : undefined)}
           >
             <SvgIcon name="check" size={15} />
-            <span>Acceptă devizul ({booking.quote_price} RON)</span>
+            <span>Acceptă devizul ({displayQuotePrice} RON)</span>
           </button>
           {onDeclineEstimate && (
             <button
@@ -838,7 +927,7 @@ function ClientHome({
   onCategory: (name: string, price: string) => void
   onProfile: () => void
   onOpenBookings: () => void
-  onAcceptEstimate: (booking: ApiBooking) => void
+  onAcceptEstimate: (booking: ApiBooking, selectedTier?: string) => void
   onDeclineEstimate: (booking: ApiBooking) => void
   onLogin?: () => void
 }) {
@@ -1277,7 +1366,7 @@ function BookingsList({
   onFind: () => void
   onCancel: (b: ApiBooking) => void
   onReview: (b: ApiBooking) => void
-  onAcceptEstimate: (b: ApiBooking) => void
+  onAcceptEstimate: (b: ApiBooking, selectedTier?: string) => void
   onDeclineEstimate: (b: ApiBooking) => void
   onCascade?: (b: ApiBooking) => void
   onPayDeposit?: (b: ApiBooking) => void
@@ -3260,9 +3349,9 @@ function ClientApp({
       },
     })
 
-  const acceptEstimate = async (b: ApiBooking) => {
+  const acceptEstimate = async (b: ApiBooking, selectedTier?: string) => {
     try {
-      const res = await api.acceptEstimate(b.id)
+      const res = await api.acceptEstimate(b.id, selectedTier)
       await refresh()
       setDialog({
         title: "Estimare acceptată și slot blocat",
@@ -3494,7 +3583,22 @@ function ProHeader({
         <div className="grow">
           <div className="pro-name" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span>{user.name}</span>
-            {user.pro?.plan === "pro" ? (
+            {user.pro?.plan === "business" ? (
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  padding: "1px 7px",
+                  background: "rgba(21, 128, 61, 0.14)",
+                  color: "var(--green, #15803d)",
+                  border: "1px solid rgba(21, 128, 61, 0.3)",
+                  borderRadius: 6,
+                  fontWeight: 700,
+                }}
+              >
+                BUSINESS AI
+              </span>
+            ) : user.pro?.plan === "pro" ? (
               <span
                 style={{
                   fontFamily: "var(--font-mono)",
@@ -3560,6 +3664,7 @@ function QuoteModal({
     proposed_start_at?: number
     slot_label?: string
     pro_notes?: string
+    options?: ApiEstimateOption[]
   }) => Promise<void>
 }) {
   const [price, setPrice] = useState(String(booking.quote_price ?? 180))
@@ -3569,8 +3674,14 @@ function QuoteModal({
   const [notes, setNotes] = useState(
     booking.pro_notes ?? "Include deplasarea în Sibiu și constatarea la fața locului.",
   )
+  const [useThreeOptions, setUseThreeOptions] = useState<boolean>(
+    Boolean(booking.estimate?.options && booking.estimate.options.length > 0),
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const basePrice = Math.max(50, Number(price) || 180)
+  const stdPrice = Math.max(50, Math.round((basePrice * 0.85) / 10) * 10)
+  const premPrice = Math.max(80, Math.round((basePrice * 1.35) / 10) * 10)
   const valid = Number(price) > 0
 
   const durationPresets: [number, string][] = [
@@ -3591,6 +3702,28 @@ function QuoteModal({
     setBusy(true)
     setError("")
     try {
+      const options: ApiEstimateOption[] | undefined = useThreeOptions
+        ? [
+            {
+              tier: "standard",
+              title: "Varianta Standard (Reparație punctuală)",
+              price_ron: stdPrice,
+              description: "Constatare + remediere punctuală cu piese standard.",
+            },
+            {
+              tier: "recomandat",
+              title: "Varianta Recomandată (Revizie completă)",
+              price_ron: basePrice,
+              description: "Remediere completă + verificare preventivă instalație.",
+            },
+            {
+              tier: "premium",
+              title: "Varianta Premium (Piese originale & Prioritate)",
+              price_ron: premPrice,
+              description: "Înlocuire cu piese premium + verificare extinsă și curățare.",
+            },
+          ]
+        : undefined
       await onSentEstimate({
         price: Number(price),
         duration: durationLabel,
@@ -3598,6 +3731,7 @@ function QuoteModal({
         proposed_start_at: selectedSlot?.start_at,
         slot_label: selectedSlot?.full_label,
         pro_notes: notes.trim() || undefined,
+        options,
       })
     } catch (e) {
       setError(e instanceof ApiFailure ? e.message : "Eroare neașteptată.")
@@ -3674,6 +3808,44 @@ function QuoteModal({
           <b>RON</b>
         </div>
 
+        {/* Wave 3.2: Good-Better-Best 3-Option Estimate Toggle */}
+        <div
+          style={{
+            marginTop: 10,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "var(--surface-subtle, #f8fafc)",
+            border: "1px solid var(--border, #e2e8f0)",
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--navy, #0f172a)",
+            }}
+          >
+            <span>📦 Trimite deviz cu 3 opțiuni (Standard / Recomandat / Premium)</span>
+            <input
+              type="checkbox"
+              checked={useThreeOptions}
+              onChange={(e) => setUseThreeOptions(e.target.checked)}
+            />
+          </label>
+          {useThreeOptions && (
+            <div style={{ display: "grid", gap: 4, marginTop: 8, fontSize: 11.5, color: "var(--text-secondary)" }}>
+              <div>• <strong>Standard:</strong> {stdPrice} RON (Reparație punctuală)</div>
+              <div>• <strong>Recomandat ★:</strong> {basePrice} RON (Revizie completă)</div>
+              <div>• <strong>Premium:</strong> {premPrice} RON (Piese originale & Prioritate)</div>
+            </div>
+          )}
+        </div>
+
         <div className="label">Notă tehnică pentru client (opțional)</div>
         <div className="input-shell">
           <Field
@@ -3721,6 +3893,8 @@ function ProDashboard({
   onRefuse,
   onComplete,
   onOnMyWay,
+  onIssueInvoice,
+  onGoSubscription,
   onAction,
   onGoServices,
   onProfile,
@@ -3733,6 +3907,8 @@ function ProDashboard({
   onRefuse: (booking: ApiBooking) => void
   onComplete: (booking: ApiBooking) => void
   onOnMyWay?: (booking: ApiBooking) => void
+  onIssueInvoice?: (booking: ApiBooking) => void
+  onGoSubscription?: () => void
   onAction: (action: DialogState) => void
   onGoServices: () => void
   onProfile: () => void
@@ -3742,12 +3918,85 @@ function ProDashboard({
   const fmt = (n: number) => n.toLocaleString("ro-RO")
   const pending = data?.pending ?? []
   const activeLeadsCount = data?.active_leads_count ?? pending.length
+  const [aiState, setAiState] = useState<ApiAiReceptionistState | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
+
+  const loadAi = useCallback(async () => {
+    try {
+      setAiState(await api.aiReceptionist())
+    } catch {
+      // ignore on initial load
+    }
+  }, [])
+
+  useEffect(() => {
+    loadAi()
+  }, [loadAi, data?.plan.plan])
+
+  const toggleAiReceptionist = async () => {
+    if (!aiState) return
+    setAiBusy(true)
+    try {
+      const next = await api.updateAiReceptionist({ enabled: !aiState.enabled })
+      setAiState(next)
+      onAction({
+        title: next.enabled ? "Recepționer AI 24/7 Activat" : "Recepționer AI Dezactivat",
+        message: next.enabled
+          ? "Apelurile pierdute și mesajele WhatsApp primesc acum răspuns automat cu tarif orientativ și primul slot liber din agendă."
+          : "Preluarea automată a apelurilor pierdute a fost oprită.",
+      })
+    } catch (e) {
+      onAction({
+        title: "Necesită Abonament Business AI (349 RON/lună)",
+        message: e instanceof ApiFailure ? e.message : "Activează planul Business AI pentru Recepționerul 24/7.",
+        confirmLabel: onGoSubscription ? "Vezi Abonamentul Business AI" : undefined,
+        onConfirm: onGoSubscription,
+      })
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  const simulateMissedCall = async () => {
+    setAiBusy(true)
+    try {
+      const res = await api.simulateAiReceptionist({
+        channel: "missed_call",
+        caller_name: "Elena Dumitrescu (Apel Pierdut)",
+        caller_phone: "+40744888999",
+        message: "Bună ziua! Am sunat dar era ocupat — curge robinețul de sub chiuvetă în Șelimbăr, când aveți un slot liber?",
+        neighborhood: "Șelimbăr",
+      })
+      setAiState(res.receptionist)
+      await onRefresh()
+      onAction({
+        title: "🤖 Apel pierdut preluat automat de AI!",
+        message: `Serviciu identificat: ${res.matched_service} (~${res.estimated_price_ron} RON) • Slot propus: ${res.proposed_slot_label}.\n\nRăspuns WhatsApp trimis: „${res.ai_reply}”`,
+      })
+    } catch (e) {
+      onAction({
+        title: "Simulare Recepționer AI",
+        message: e instanceof ApiFailure ? e.message : "Nu am putut simula apelul.",
+        confirmLabel: onGoSubscription ? "Activează Business AI (349 RON)" : undefined,
+        onConfirm: onGoSubscription,
+      })
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  const planTierName =
+    data?.plan.plan === "business"
+      ? "Business AI (349 RON/lună • 69 EUR)"
+      : data?.plan.plan === "essential"
+        ? "Essential (49 RON/lună • 10 EUR)"
+        : "Pro (195 RON/lună • 39 EUR)"
   const planLabel =
     data?.plan.status === "trial"
       ? "Perioadă de probă (14 zile gratuit • 0% comision)"
       : data?.plan.status === "past_due"
         ? "Plată restantă"
-        : `Abonament ${data?.plan.plan === "essential" ? "Essential" : "Pro"} Activ (${data?.plan.plan === "essential" ? "49 RON/lună (10 EUR)" : "195 RON/lună (39 EUR)"} • 0% comision)`
+        : `Abonament ${planTierName} Activ (0% comision)`
   return (
     <div className="screen-content pro-dashboard">
       <ProHeader
@@ -3934,9 +4183,32 @@ function ProDashboard({
                   <div className="schedule-client-line">
                     {b.client.name} · {destAddr}
                   </div>
+                  {b.invoice && (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: "var(--green, #15803d)",
+                      }}
+                    >
+                      🧾 Factură B2C emisă: {b.invoice.invoice_no} • ANAF SPV #{b.invoice.spv_index}
+                    </div>
+                  )}
                   {done ? (
-                    <div className="schedule-done-note">
-                      ✓ Lucrare finalizată cu succes
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                      <div className="schedule-done-note" style={{ margin: 0 }}>
+                        ✓ Lucrare finalizată cu succes
+                      </div>
+                      {onIssueInvoice && !b.invoice && (
+                        <button
+                          type="button"
+                          className="chip-btn-clean"
+                          onClick={() => onIssueInvoice(b)}
+                        >
+                          <span className="nowrap">🧾 Emite Factură & e-Factura SPV</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="schedule-chips-row">
@@ -3989,6 +4261,15 @@ function ProDashboard({
                           </span>
                         </button>
                       )}
+                      {onIssueInvoice && !b.invoice && (
+                        <button
+                          type="button"
+                          className="chip-btn-clean"
+                          onClick={() => onIssueInvoice(b)}
+                        >
+                          <span className="nowrap">🧾 Factură e-Factura SPV</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="complete-chip-btn"
@@ -4003,6 +4284,86 @@ function ProDashboard({
               </div>
             )
           })}
+        </section>
+
+        {/* Wave 3.1: REZOLV Receptioner AI 24/7 (Missed-Call & WhatsApp Auto-Responder) */}
+        <section className="section-block" style={{ border: "1px solid rgba(16, 63, 111, 0.2)", background: "var(--surface)" }}>
+          <div className="section-heading">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span>🤖 REZOLV Recepționer AI 24/7</span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  background: aiState?.enabled ? "rgba(21, 128, 61, 0.14)" : "var(--soft-blue)",
+                  color: aiState?.enabled ? "var(--green, #15803d)" : "var(--navy)",
+                }}
+              >
+                {aiState?.enabled ? "ACTIV 24/7" : "AUTOPILOT APELURI PIERDUTE"}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="chip-btn-clean"
+              disabled={aiBusy}
+              onClick={toggleAiReceptionist}
+            >
+              {aiState?.enabled ? "Oprește AI" : "Activează AI 24/7"}
+            </button>
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "6px 0 10px" }}>
+            Când ai mâinile ocupate sub chiuvetă sau la tablou și nu poți răspunde, Recepționerul AI preia automat apelul pierdut pe WhatsApp, identifică lucrarea din catalogul tău, propune primul slot liber din agendă și îți creează cererea pre-ofertată.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="primary-button compact"
+              disabled={aiBusy}
+              onClick={simulateMissedCall}
+            >
+              {aiBusy ? "Se preia apelul..." : "📲 Simulează apel pierdut + preluare WhatsApp AI"}
+            </button>
+            {onGoSubscription && data?.plan.plan !== "business" && (
+              <button
+                type="button"
+                className="outline-button compact"
+                onClick={onGoSubscription}
+              >
+                Treci la Business AI (349 RON/lună)
+              </button>
+            )}
+          </div>
+          {aiState?.logs && aiState.logs.length > 0 && (
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+              {aiState.logs.slice(0, 3).map((log) => (
+                <div
+                  key={log.id}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    background: "var(--surface-subtle, #f8fafc)",
+                    border: "1px solid var(--border, #e2e8f0)",
+                    fontSize: 11.5,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                    <span>📞 {log.caller_name} ({log.caller_phone})</span>
+                    <span style={{ color: "var(--green, #15803d)" }}>
+                      {log.matched_service_name} • ~{log.estimated_price_ron} RON
+                    </span>
+                  </div>
+                  <div style={{ color: "var(--text-secondary)", marginTop: 3 }}>
+                    Client: „{log.client_message}”
+                  </div>
+                  <div style={{ color: "var(--navy)", marginTop: 3, fontWeight: 500 }}>
+                    🤖 WhatsApp trimis: „{log.ai_reply}”
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
       <div className="add-service-card" style={{ gridColumn: "1 / -1" }}>
@@ -4142,12 +4503,22 @@ function Subscription({
     load()
   }, [load])
 
-  const plan = sub?.plan as "essential" | "pro" | undefined
+  const plan = sub?.plan as "essential" | "pro" | "business" | undefined
   const days = sub?.renews_in_days
 
-  const choose = (target: "essential" | "pro") => {
-    const priceLabel = target === "pro" ? "195 RON/lună (39 EUR)" : "49 RON/lună (10 EUR)"
-    const name = target === "pro" ? "Abonament Pro" : "Abonament Essential"
+  const choose = (target: "essential" | "pro" | "business") => {
+    const priceLabel =
+      target === "business"
+        ? "349 RON/lună (69 EUR)"
+        : target === "pro"
+          ? "195 RON/lună (39 EUR)"
+          : "49 RON/lună (10 EUR)"
+    const name =
+      target === "business"
+        ? "Abonament Business AI"
+        : target === "pro"
+          ? "Abonament Pro"
+          : "Abonament Essential"
     const card = sub?.payment_method
     onAction({
       title: `Treci la ${name}`,
@@ -4180,8 +4551,36 @@ function Subscription({
         <span>Abonament B2B Meșter</span>
         <small>14 zile gratuit • 0% comision per lucrare • Fără dezintermediere</small>
       </div>
+      <div className="pricing-card premium" style={{ borderColor: "var(--green, #15803d)" }}>
+        <div className="promoted-ribbon" style={{ background: "var(--green, #15803d)" }}>
+          NOU · AI AUTOPILOT & RO e-FACTURA SPV
+        </div>
+        <div className="tier-head">
+          <span>Abonament Business AI</span>
+          <b>{plan === "business" ? (sub?.status === "trial" ? "Probă 14 zile" : "Activ") : "0% comision"}</b>
+        </div>
+        <div className="price">
+          349 RON <small>/ lună (69 EUR)</small>
+        </div>
+        <ul>
+          <li><strong>Tot ce include Pro</strong> + poziționare #1 Top Promoted în Sibiu</li>
+          <li><strong>🤖 REZOLV Recepționer AI 24/7</strong> — preia apelurile pierdute pe WhatsApp, oferă tarif orientativ și propune primul slot liber din agendă</li>
+          <li><strong>🧾 Facturare B2C 1-Click & RO e-Factura ANAF SPV</strong> (XML UBL 2.1 conform OUG 69/2024 + export SmartBill / Oblio)</li>
+          <li><strong>📦 Devize cu 3 opțiuni (Good–Better–Best)</strong> — Standard / Recomandat / Premium pentru creșterea bonului mediu cu +30%</li>
+          <li>Suport multi-echipă (până la 3 tehnicieni pe același CUI)</li>
+        </ul>
+        <Pressable
+          className="primary-button"
+          disabled={!sub || plan === "business"}
+          onClick={() => choose("business")}
+        >
+          {plan === "business"
+            ? "Abonament Business AI activ (349 RON/lună)"
+            : "Activează Business AI (349 RON / lună)"}
+        </Pressable>
+      </div>
       <div className="pricing-card premium">
-        <div className="promoted-ribbon">14 zile gratuit · 0% comision</div>
+        <div className="promoted-ribbon">CEL MAI POPULAR · 14 zile gratuit · 0% comision</div>
         <div className="tier-head">
           <span>Abonament Pro</span>
           <b>{plan === "pro" ? (sub?.status === "trial" ? "Probă 14 zile" : "Activ") : "0% comision"}</b>
@@ -4190,12 +4589,12 @@ function Subscription({
           195 RON <small>/ lună (39 EUR)</small>
         </div>
         <ul>
-          <li><strong>14 zile gratuit</strong> — testează fără niciun risc</li>
-          <li>0% comision per lucrare — încasezi 100% direct de la client</li>
-          <li>Agendă de teren B2B cu blocare automată a intervalului</li>
-          <li>Remindere SMS automate (24h și 2h înainte de lucrare)</li>
-          <li>Devize rapide (tarif estimat și durată)</li>
-          <li>Verificare CUI și afișare prioritară în Sibiu</li>
+          <li><strong>14 zile gratuit</strong> — cereri nelimitate cu 0% comision per lucrare</li>
+          <li><strong>★ Insignă Recomandat</strong> & prioritate la redirecționarea automată în cascadă</li>
+          <li><strong>⚡ Rezervare Instant (Instant Book)</strong> + Avans garantat anti-no-show (50 RON)</li>
+          <li><strong>📸 Portofoliu Foto Înainte/După</strong> & Recenzii Externe Verificate</li>
+          <li><strong>📦 Devize cu 3 opțiuni</strong> (Standard / Recomandat / Premium)</li>
+          <li>Buton „Sunt pe drum (ETA)” pe WhatsApp & Remindere SMS 24h/2h</li>
         </ul>
         <Pressable
           className="primary-button"
@@ -4545,9 +4944,37 @@ function ProApp({
           onQuote={setQuote}
           onAction={setDialog}
           onGoServices={() => setTab("services")}
+          onGoSubscription={() => setTab("subscription")}
           onProfile={() => setTab("profile")}
           onNotifications={notifications}
           onRefresh={refresh}
+          onIssueInvoice={async (b) => {
+            try {
+              const res = await api.issueBookingInvoice(b.id)
+              await refresh()
+              setDialog({
+                title: "🧾 Factură B2C & RO e-Factura SPV emisă!",
+                message: `${res.message}\n\nTotal: ${res.invoice.total_ron} RON (TVA inclus: ${res.invoice.vat_ron} RON). Poți descărca fișierul XML UBL 2.1 compatibil ANAF SPV / SmartBill / Oblio.`,
+                confirmLabel: "Descarcă XML e-Factura",
+                onConfirm: async () => {
+                  try {
+                    const xmlData = await api.getBookingInvoiceXml(b.id)
+                    const blob = new Blob([xmlData.xml], { type: "application/xml;charset=utf-8" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = xmlData.filename || `${res.invoice.invoice_no}.xml`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  } catch (err) {
+                    fail(err)
+                  }
+                },
+              })
+            } catch (e) {
+              fail(e)
+            }
+          }}
           onOnMyWay={async (b) => {
             try {
               const res = await api.onMyWay(b.id, 20)

@@ -26,7 +26,7 @@ export type ApiUser = {
     verification_status: "pending" | "verified" | "rejected"
     verification_note: string | null
     onboarded_by_admin?: boolean
-    plan: "essential" | "pro"
+    plan: "essential" | "pro" | "business"
     plan_status: string
     subscription_price_eur?: number
   }
@@ -109,6 +109,7 @@ export type ApiPro = {
   experience: string
   experience_years: number
   promoted: boolean
+  plan?: "essential" | "pro" | "business"
   headline: string | null
   bio?: string
   categories?: string[]
@@ -116,6 +117,13 @@ export type ApiPro = {
   portfolio_photos?: ApiPortfolioPhoto[]
   external_reviews?: ApiExternalReview[]
   services: ApiService[]
+}
+
+export type ApiEstimateOption = {
+  tier: "standard" | "recomandat" | "premium" | string
+  title: string
+  price_ron: number
+  description?: string
 }
 
 export type ApiEstimate = {
@@ -130,9 +138,47 @@ export type ApiEstimate = {
   proposed_end_at: number
   slot_label: string
   pro_notes?: string | null
+  options?: ApiEstimateOption[]
+  selected_tier?: string | null
   status: "sent" | "accepted" | "declined" | "expired" | "superseded"
   expires_at: number
   created_at: number
+}
+
+export type ApiClientInvoice = {
+  id: string
+  invoice_no: string
+  series: string
+  amount_ron: number
+  vat_ron: number
+  total_ron: number
+  efactura_status: string
+  spv_index: string
+  issued_at: number
+}
+
+export type ApiAiReceptionistLog = {
+  id: string
+  channel: string
+  caller_name: string
+  caller_phone: string
+  client_message: string
+  ai_reply: string
+  matched_service_name: string
+  estimated_price_ron: number
+  proposed_slot_label: string
+  booking_id: string | null
+  status: string
+  ago: string
+}
+
+export type ApiAiReceptionistState = {
+  plan: string
+  eligible: boolean
+  enabled: boolean
+  auto_quote: boolean
+  greeting: string
+  logs: ApiAiReceptionistLog[]
 }
 
 export type ApiSmsReminder = {
@@ -170,6 +216,8 @@ export type ApiBooking = {
   on_my_way_at?: number | null
   eta_minutes?: number | null
   deposit_paid_ron?: number
+  selected_tier?: string | null
+  invoice?: ApiClientInvoice | null
   cascaded_from_booking_id?: string | null
   ago: string
   time_label: string
@@ -438,10 +486,22 @@ export const api = {
       proposed_start_at?: number
       slot_label?: string
       pro_notes?: string
+      options?: ApiEstimateOption[]
     },
   ) => request<{ booking: ApiBooking }>("POST", `/api/bookings/${id}/estimate`, data),
-  acceptEstimate: (id: string) =>
-    request<{ booking: ApiBooking }>("POST", `/api/bookings/${id}/accept-estimate`, {}),
+  acceptEstimate: (id: string, selected_tier?: string) =>
+    request<{ booking: ApiBooking }>(
+      "POST",
+      `/api/bookings/${id}/accept-estimate`,
+      selected_tier ? { selected_tier } : {},
+    ),
+  issueBookingInvoice: (id: string) =>
+    request<{ invoice: ApiClientInvoice; booking: ApiBooking; message: string }>("POST", `/api/bookings/${id}/invoice`, {}),
+  getBookingInvoiceXml: (id: string) =>
+    request<{ xml: string; invoice_number: string; spv_index: string; filename: string }>(
+      "GET",
+      `/api/bookings/${id}/invoice/xml`,
+    ),
   declineEstimate: (id: string, reason?: string) =>
     request<{ booking: ApiBooking }>("POST", `/api/bookings/${id}/decline-estimate`, { reason }),
   reschedule: (
@@ -499,7 +559,32 @@ export const api = {
     comment: string
     source_label?: string
   }) => request<{ professional: ApiPro }>("POST", "/api/pro/external-reviews", data),
-  web2AppSession: (data: { kind?: "subscription" | "deposit"; plan?: "essential" | "pro"; booking_id?: string; amount_ron?: number }) =>
+  aiReceptionist: () => request<ApiAiReceptionistState>("GET", "/api/pro/ai-receptionist"),
+  updateAiReceptionist: (data: { enabled?: boolean; auto_quote?: boolean; greeting?: string }) =>
+    request<ApiAiReceptionistState>("PATCH", "/api/pro/ai-receptionist", data),
+  simulateAiReceptionist: (data: {
+    channel?: "missed_call" | "whatsapp"
+    caller_name?: string
+    caller_phone?: string
+    message?: string
+    neighborhood?: string
+  }) =>
+    request<{
+      handled: boolean
+      channel: string
+      ai_reply: string
+      matched_service: string
+      estimated_price_ron: number
+      proposed_slot_label: string
+      booking: ApiBooking
+      receptionist: ApiAiReceptionistState
+    }>("POST", "/api/pro/ai-receptionist/simulate", data),
+  web2AppSession: (data: {
+    kind?: "subscription" | "deposit"
+    plan?: "essential" | "pro" | "business"
+    booking_id?: string
+    amount_ron?: number
+  }) =>
     request<{ session_id: string; web2app_url: string; amount_ron: number; zero_apple_commission: boolean }>(
       "POST",
       "/api/subscription/web2app-session",

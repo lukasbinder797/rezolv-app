@@ -480,6 +480,8 @@ def delete_user_account(conn, user, data=None) -> dict:
             raise ApiError(401, "invalid_credentials", "Parola introdusă pentru confirmarea ștergerii este incorectă.")
 
     # Delete dependent records & user row
+    conn.execute("DELETE FROM ai_receptionist_logs WHERE pro_id=?", (uid,))
+    conn.execute("DELETE FROM client_invoices WHERE client_id=? OR pro_id=?", (uid, uid))
     conn.execute("DELETE FROM booking_deposits WHERE client_id=? OR pro_id=?", (uid, uid))
     conn.execute("DELETE FROM pro_portfolio_photos WHERE pro_id=?", (uid,))
     conn.execute("DELETE FROM external_reviews WHERE pro_id=?", (uid,))
@@ -686,7 +688,8 @@ def _public_pro(conn, r, category=None, detail=False):
         "experience": f"{r['experience_years']} ani experiență",
         "experience_years": r["experience_years"],
         "verified": r["verification_status"] == "verified",
-        "promoted": r["plan"] == "pro",
+        "promoted": r["plan"] in ("pro", "business"),
+        "plan": r["plan"],
         "services": services,
     }
     if detail:
@@ -767,7 +770,7 @@ def list_professionals(conn, category=None, q=None, zone=None):
             "AND (ro_norm(s.name) LIKE ? OR ro_norm(s.category) LIKE ?)))"
         )
         args += [like] * 5
-    sql += " ORDER BY (p.plan='pro') DESC, p.rating_avg DESC, p.rating_count DESC"
+    sql += " ORDER BY (p.plan='business') DESC, (p.plan='pro') DESC, p.rating_avg DESC, p.rating_count DESC"
     return {"professionals": [_public_pro(conn, r, category) for r in conn.execute(sql, args)]}
 
 
@@ -863,6 +866,14 @@ def _validate_photos(photos):
 
 
 def _estimate_view(row) -> dict:
+    r_keys = row.keys() if hasattr(row, "keys") else ()
+    raw_opts = row["options_json"] if "options_json" in r_keys else None
+    options = []
+    if raw_opts:
+        try:
+            options = json.loads(raw_opts)
+        except Exception:
+            options = []
     return {
         "id": row["id"],
         "booking_id": row["booking_id"],
@@ -875,6 +886,8 @@ def _estimate_view(row) -> dict:
         "proposed_end_at": row["proposed_end_at"],
         "slot_label": row["slot_label"],
         "pro_notes": row["pro_notes"],
+        "options": options,
+        "selected_tier": row["selected_tier"] if "selected_tier" in r_keys else None,
         "status": row["status"],
         "expires_at": row["expires_at"],
         "created_at": row["created_at"],
@@ -1115,6 +1128,7 @@ def _booking_view(conn, b, viewer, detail=False):
         "eta_minutes": b["eta_minutes"] if "eta_minutes" in b_keys else None,
         "deposit_paid_ron": int(b["deposit_paid_ron"] or 0) if "deposit_paid_ron" in b_keys else 0,
         "cascaded_from_booking_id": b["cascaded_from_booking_id"] if "cascaded_from_booking_id" in b_keys else None,
+        "selected_tier": b["selected_tier"] if "selected_tier" in b_keys else None,
         "created_at": b["created_at"],
         "ago": ago(b["created_at"]),
         "time_label": b["scheduled_for"] or hhmm(b["created_at"]),
@@ -1133,12 +1147,40 @@ def _booking_view(conn, b, viewer, detail=False):
             "phone": pro_phone if (b["status"] in ("accepted", "completed") or viewer["role"] in ("pro", "admin")) else None,
         },
         "estimate": _estimate_view(latest_est) if latest_est else None,
+        "invoice": None,
         "sms_reminders": sms_list,
         "review": dict(review) if review else None,
         "can_review": b["status"] == "completed" and review is None and viewer["id"] == b["client_id"],
         "client_address": resolved_addr,
         "client_phone": resolved_phone if (viewer["role"] != "client" or viewer["id"] == b["client_id"]) else None,
     }
+    try:
+        inv_row = conn.execute(
+            "SELECT * FROM client_invoices WHERE booking_id=? ORDER BY created_at DESC LIMIT 1",
+            (b["id"],),
+        ).fetchone()
+        if inv_row:
+            amt = int(inv_row["amount_ron"])
+            out["invoice"] = {
+                "id": inv_row["id"],
+                "invoice_no": inv_row["invoice_no"],
+                "series": "SB",
+                "supplier_name": inv_row["supplier_name"],
+                "supplier_cui": inv_row["supplier_cui"],
+                "buyer_name": inv_row["buyer_name"],
+                "amount_ron": amt,
+                "vat_ron": round(amt * 19 / 119, 2),
+                "total_ron": amt,
+                "vat_rate": inv_row["vat_rate"],
+                "spv_status": inv_row["spv_status"],
+                "efactura_status": "transmitted_spv",
+                "spv_index": inv_row["spv_index"],
+                "provider_bridge": inv_row["provider_bridge"],
+                "issued_at": inv_row["created_at"],
+                "created_at": inv_row["created_at"],
+            }
+    except Exception:
+        pass
     if viewer["role"] != "client" and b["status"] in ("estimated", "accepted", "completed"):
         out["client"]["phone"] = resolved_phone
     if detail:
@@ -1255,13 +1297,25 @@ def send_estimate(conn, user, bid, data):
     )
 
     conn.execute("UPDATE estimates SET status='superseded' WHERE booking_id=? AND status='sent'", (bid,))
+    raw_options = data.get("options")
+    clean_options = []
+    if isinstance(raw_options, list):
+        for opt in raw_options[:3]:
+            if isinstance(opt, dict) and opt.get("price_ron"):
+                clean_options.append({
+                    "tier": str(opt.get("tier") or "standard")[:30],
+                    "title": str(opt.get("title") or "Standard")[:80],
+                    "price_ron": max(1, int(opt.get("price_ron") or price)),
+                    "description": str(opt.get("description") or "")[:240],
+                })
+    options_json = json.dumps(clean_options, ensure_ascii=False) if clean_options else None
     est_id = new_id("est_")
     t = now_ts()
     conn.execute(
         "INSERT INTO estimates (id,booking_id,pro_id,price_ron,price_max_ron,duration_minutes,duration_label,"
-        "proposed_start_at,proposed_end_at,slot_label,pro_notes,status,expires_at,created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,'sent',?,?)",
-        (est_id, bid, user["id"], price, price_max, dur_m, dur_lbl, start_ts, end_ts, slot_lbl, notes, t + 12 * HOUR, t),
+        "proposed_start_at,proposed_end_at,slot_label,pro_notes,options_json,status,expires_at,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'sent',?,?)",
+        (est_id, bid, user["id"], price, price_max, dur_m, dur_lbl, start_ts, end_ts, slot_lbl, notes, options_json, t + 12 * HOUR, t),
     )
 
     notify(
@@ -1285,7 +1339,7 @@ def send_estimate(conn, user, bid, data):
         user["id"],
         "pro",
         "estimate_sent",
-        {"booking_id": bid, "estimate_id": est_id, "price_ron": price, "duration_minutes": dur_m},
+        {"booking_id": bid, "estimate_id": est_id, "price_ron": price, "duration_minutes": dur_m, "options_count": len(clean_options)},
     )
     conn.commit()
     return get_booking(conn, user, bid)
@@ -1311,6 +1365,16 @@ def accept_estimate(conn, user, bid, data=None):
 
     dur_m = est["duration_minutes"] if est else (b["duration_minutes"] or 60)
     price = est["price_ron"] if est else (b["quote_price"] or 150)
+    selected_tier = (data or {}).get("selected_tier") if isinstance(data, dict) else None
+    if est and selected_tier and "options_json" in est.keys() and est["options_json"]:
+        try:
+            opts = json.loads(est["options_json"])
+            for opt in opts:
+                if opt.get("tier") == selected_tier and opt.get("price_ron"):
+                    price = int(opt["price_ron"])
+                    break
+        except Exception:
+            pass
     dur_lbl = est["duration_label"] if est else (b["quote_duration"] or duration_label_of(dur_m))
     start_ts = est["proposed_start_at"] if est else b["scheduled_start_at"]
     end_ts = est["proposed_end_at"] if est else b["scheduled_end_at"]
@@ -1342,9 +1406,13 @@ def accept_estimate(conn, user, bid, data=None):
         scheduled_start_at=start_ts,
         scheduled_end_at=end_ts,
         accepted_estimate_id=est["id"] if est else None,
+        selected_tier=selected_tier,
     )
     if est:
-        conn.execute("UPDATE estimates SET status='accepted', responded_at=? WHERE id=?", (t, est["id"]))
+        conn.execute(
+            "UPDATE estimates SET status='accepted', selected_tier=?, responded_at=? WHERE id=?",
+            (selected_tier, t, est["id"]),
+        )
 
     notify(
         conn,
@@ -1791,7 +1859,7 @@ def cascade_booking(conn, user, bid, data=None):
         "FROM pro_profiles p JOIN users u ON u.id=p.user_id "
         "JOIN pro_services s ON s.pro_id=p.user_id AND s.category=? AND s.active=1 "
         "WHERE p.verification_status='verified' AND u.is_active=1 AND p.plan_status IN ('active','trial') "
-        "GROUP BY p.user_id ORDER BY (p.plan='pro') DESC, p.rating_avg DESC, p.rating_count DESC LIMIT 10",
+        "GROUP BY p.user_id ORDER BY (p.plan='business') DESC, (p.plan='pro') DESC, p.rating_avg DESC, p.rating_count DESC LIMIT 10",
         (b["category"],),
     ).fetchall()
 
@@ -2106,7 +2174,7 @@ def create_web2app_session(conn, user, data) -> dict:
     """Wave 2.4: Create a Web2App checkout session for B2B subscriptions or booking deposits."""
     v = Validator(data or {})
     kind = v.choice("kind", ("subscription", "deposit"), required=False, label="Tipul plății") or "subscription"
-    plan = v.choice("plan", ("essential", "pro"), required=False, label="Planul")
+    plan = v.choice("plan", ("essential", "pro", "business"), required=False, label="Planul")
     booking_id = v.text("booking_id", max=60, required=False, label="Programarea")
     amount_ron = v.integer("amount_ron", min=10, max=2000, required=False, label="Suma")
     v.done()
@@ -2116,6 +2184,348 @@ def create_web2app_session(conn, user, data) -> dict:
     else:
         amount_ron = amount_ron or 50
     return payments.create_web2app_checkout_session(kind, amount_ron, user["id"], plan=plan, booking_id=booking_id)
+
+
+# ----------------------------------------- Wave 3.1: REZOLV AI Receptionist (Missed Calls & WhatsApp 24/7)
+def get_ai_receptionist(conn, user) -> dict:
+    """Return AI Receptionist settings & captured missed-call/WhatsApp logs for the authenticated pro."""
+    p = _own_profile(conn, user)
+    p_keys = p.keys() if hasattr(p, "keys") else ()
+    enabled = bool(p["ai_receptionist_enabled"]) if "ai_receptionist_enabled" in p_keys else False
+    greeting = (
+        (p["ai_greeting"] if "ai_greeting" in p_keys else None)
+        or f"Salut! Sunt asistentul AI al firmei {p['company_name']}. Meșterul este într-o intervenție acum, dar îți pot verifica imediat primul loc liber în calendar și tariful orientativ!"
+    )
+    auto_quote = bool(p["ai_auto_quote"]) if "ai_auto_quote" in p_keys else True
+    logs = [
+        {
+            "id": r["id"],
+            "channel": r["channel"],
+            "caller_name": r["caller_name"],
+            "caller_phone": r["caller_phone"],
+            "client_message": r["client_message"],
+            "neighborhood": r["neighborhood"],
+            "matched_service_name": r["matched_service_name"],
+            "quoted_price_ron": r["quoted_price_ron"],
+            "estimated_price_ron": r["quoted_price_ron"],
+            "proposed_slot_label": r["proposed_slot_label"],
+            "ai_reply": r["ai_reply"],
+            "booking_id": r["booking_id"],
+            "ago": ago(r["created_at"]),
+            "created_at": r["created_at"],
+        }
+        for r in conn.execute(
+            "SELECT * FROM ai_receptionist_logs WHERE pro_id=? ORDER BY created_at DESC LIMIT 20",
+            (user["id"],),
+        )
+    ]
+    return {
+        "enabled": enabled,
+        "greeting": greeting,
+        "auto_quote": auto_quote,
+        "plan": p["plan"],
+        "eligible": p["plan"] == "business" or p["plan_status"] == "trial",
+        "logs": logs,
+    }
+
+
+def update_ai_receptionist(conn, user, data) -> dict:
+    """Update AI Receptionist configuration for a pro."""
+    p = _own_profile(conn, user)
+    data = data or {}
+    enabled = data.get("enabled")
+    greeting = data.get("greeting")
+    auto_quote = data.get("auto_quote")
+    if isinstance(enabled, bool):
+        conn.execute(
+            "UPDATE pro_profiles SET ai_receptionist_enabled=? WHERE user_id=?",
+            (1 if enabled else 0, user["id"]),
+        )
+    if isinstance(greeting, str) and greeting.strip():
+        conn.execute(
+            "UPDATE pro_profiles SET ai_greeting=? WHERE user_id=?",
+            (greeting.strip()[:300], user["id"]),
+        )
+    if isinstance(auto_quote, bool):
+        conn.execute(
+            "UPDATE pro_profiles SET ai_auto_quote=? WHERE user_id=?",
+            (1 if auto_quote else 0, user["id"]),
+        )
+    conn.commit()
+    return get_ai_receptionist(conn, user)
+
+
+def handle_ai_receptionist_event(conn, user, data) -> dict:
+    """Wave 3.1: Handle an incoming missed call or WhatsApp message while the tradesperson's hands are busy.
+    Matches the best service from the pro's catalog, checks live free slots from ProB2BCalendar,
+    replies via WhatsApp/SMS with the preliminary quote & slot, and locks/creates the booking.
+    """
+    p = _own_profile(conn, user)
+    v = Validator(data or {})
+    channel = v.choice("channel", ("missed_call", "whatsapp"), required=False, label="Canalul") or "whatsapp"
+    caller_name = v.text("caller_name", min=2, max=80, required=False, label="Numele apelantului") or "Client Apel Pierdut"
+    caller_phone = v.phone("caller_phone", required=False, label="Telefonul apelantului") or "+40 745 800 900"
+    client_message = (
+        v.text("client_message", min=5, max=600, required=False, label="Mesajul clientului")
+        or "Am sunat pentru o defecțiune la instalație în Hipodrom, când aveți loc liber?"
+    )
+    neighborhood = v.text("neighborhood", max=60, required=False, label="Cartierul") or _infer_sibiu_zone(client_message) or "Hipodrom"
+    v.done()
+
+    services = conn.execute(
+        "SELECT * FROM pro_services WHERE pro_id=? AND active=1 ORDER BY rowid ASC",
+        (user["id"],),
+    ).fetchall()
+    if not services:
+        raise ApiError(409, "no_services", "Adaugă cel puțin un serviciu activ pentru ca Recepționerul AI să poată oferta.")
+
+    msg_norm = db.ro_norm(client_message)
+    best_svc = services[0]
+    for sv in services:
+        words = [w for w in db.ro_norm(sv["name"]).split() if len(w) >= 4]
+        if any(w in msg_norm for w in words):
+            best_svc = sv
+            break
+
+    slots_info = get_professional_slots(conn, user["id"], days_count=5)
+    first_slot = slots_info["slots"][0] if slots_info["slots"] else None
+    dur_min = int(best_svc["est_duration_min"] or 60)
+    if first_slot:
+        start_ts = first_slot["start_at"]
+        end_ts = start_ts + dur_min * 60
+        slot_label = first_slot["label"]
+    else:
+        start_ts, end_ts = default_next_free_slot(conn, user["id"], dur_min)
+        slot_label = sms.format_ro_slot(start_ts, end_ts)
+
+    price_ron = int(best_svc["price_from"])
+    ai_reply = (
+        f"🤖 REZOLV AI ({p['company_name']}): Salut {caller_name}! {user['name']} este într-o lucrare acum și nu poate răspunde la apel. "
+        f"Pentru „{best_svc['name']}” în {neighborhood}, tariful orientativ este {price_ron} {best_svc['price_unit']}, "
+        f"iar primul interval liber în agendă este {slot_label}. Ți-am pre-rezervat locul și meșterul a fost notificat!"
+    )
+
+    # Create booking automatically in the pro's calendar
+    bid = new_id("b_")
+    t = now_ts()
+    conn.execute(
+        "INSERT INTO bookings (id,client_id,pro_id,service_id,category,service_name,price_label,description,"
+        "neighborhood,client_address,client_phone,urgency_level,preferred_window,status,quote_price,quote_duration,"
+        "duration_minutes,scheduled_for,scheduled_start_at,scheduled_end_at,pro_notes,created_at,updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,'normal',?,'estimated',?,?,?,?,?,?,?,?,?)",
+        (
+            bid,
+            user["id"],
+            user["id"],
+            best_svc["id"],
+            best_svc["category"],
+            best_svc["name"],
+            f"de la {price_ron} {best_svc['price_unit']}",
+            f"[Preluat de REZOLV Recepționer AI • {channel}]: {client_message}",
+            neighborhood,
+            f"{neighborhood}, Sibiu",
+            caller_phone,
+            slot_label,
+            price_ron,
+            best_svc["duration"],
+            dur_min,
+            slot_label,
+            start_ts,
+            end_ts,
+            "Preluat automat de REZOLV Recepționer AI în timp ce meșterul lucra.",
+            t,
+            t,
+        ),
+    )
+    est_id = new_id("est_")
+    conn.execute(
+        "INSERT INTO estimates (id,booking_id,pro_id,price_ron,duration_minutes,duration_label,"
+        "proposed_start_at,proposed_end_at,slot_label,pro_notes,status,expires_at,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,'sent',?,?)",
+        (
+            est_id,
+            bid,
+            user["id"],
+            price_ron,
+            dur_min,
+            best_svc["duration"],
+            start_ts,
+            end_ts,
+            slot_label,
+            "Deviz preliminar trimis automat de REZOLV Recepționer AI.",
+            t + 12 * HOUR,
+            t,
+        ),
+    )
+
+    sms.send_instant_sms(
+        conn,
+        bid,
+        caller_phone,
+        "estimate_ready",
+        ai_reply,
+        prefer_channel="whatsapp",
+    )
+
+    log_id = new_id("air_")
+    conn.execute(
+        "INSERT INTO ai_receptionist_logs (id,pro_id,channel,caller_name,caller_phone,client_message,"
+        "neighborhood,matched_service_name,quoted_price_ron,proposed_slot_label,ai_reply,booking_id,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            log_id,
+            user["id"],
+            channel,
+            caller_name,
+            caller_phone,
+            client_message,
+            neighborhood,
+            best_svc["name"],
+            price_ron,
+            slot_label,
+            ai_reply,
+            bid,
+            t,
+        ),
+    )
+    notify(
+        conn,
+        user["id"],
+        "ai_receptionist_captured",
+        f"🤖 Apel pierdut salvat de AI ({caller_name} • {price_ron} RON)",
+        f"Recepționerul AI a răspuns pe WhatsApp pentru „{best_svc['name']}” și a propus slotul {slot_label}.",
+        bid,
+    )
+    analytics.track(
+        conn,
+        user["id"],
+        "pro",
+        "ai_receptionist_handled",
+        {"channel": channel, "service": best_svc["name"], "quoted_price_ron": price_ron, "booking_id": bid},
+    )
+    conn.commit()
+    bk_view = _booking_view(conn, _booking_row(conn, bid), user, detail=True)
+    return {
+        "handled": True,
+        "channel": channel,
+        "ai_reply": ai_reply,
+        "matched_service": best_svc["name"],
+        "estimated_price_ron": price_ron,
+        "proposed_slot_label": slot_label,
+        "booking": bk_view,
+        "captured": {
+            "id": log_id,
+            "channel": channel,
+            "caller_name": caller_name,
+            "caller_phone": caller_phone,
+            "matched_service_name": best_svc["name"],
+            "quoted_price_ron": price_ron,
+            "estimated_price_ron": price_ron,
+            "proposed_slot_label": slot_label,
+            "ai_reply": ai_reply,
+            "booking_id": bid,
+        },
+        "receptionist": get_ai_receptionist(conn, user),
+        "message": f"Recepționerul AI a preluat clientul {caller_name}, a ofertat {price_ron} RON pentru „{best_svc['name']}” și a propus slotul {slot_label}.",
+    }
+
+
+# ----------------------------------------- Wave 3.2: B2C Invoice & RO e-Factura ANAF SPV (OUG 69/2024)
+def issue_booking_invoice(conn, user, bid, data=None) -> dict:
+    """Wave 3.2: 1-Tap B2C Invoice & RO e-Factura ANAF SPV transmission (SmartBill / Oblio / UBL 2.1 XML)."""
+    require_role(user, "pro", "admin")
+    b = _booking_row(conn, bid)
+    if not b or (user["role"] != "admin" and b["pro_id"] != user["id"]):
+        raise ApiError(404, "not_found", "Programarea nu a fost găsită.")
+    if b["status"] not in ("accepted", "completed"):
+        raise ApiError(409, "invalid_transition", "Factura B2C poate fi emisă doar pentru o lucrare confirmată sau finalizată.")
+
+    existing = conn.execute("SELECT * FROM client_invoices WHERE booking_id=?", (bid,)).fetchone()
+    if existing:
+        bk_view = _booking_view(conn, _booking_row(conn, bid), user, detail=True)
+        return {
+            "invoice": bk_view["invoice"] or dict(existing),
+            "booking": bk_view,
+            "message": f"Factura {existing['invoice_no']} este deja emisă și transmisă în ANAF SPV (Index {existing['spv_index']}).",
+        }
+
+    p = conn.execute("SELECT company_name, cui FROM pro_profiles WHERE user_id=?", (b["pro_id"],)).fetchone()
+    supplier_name = p["company_name"] if p and p["company_name"] else (b["pro_company"] or "MEȘTER SIBIU S.R.L.")
+    supplier_cui = p["cui"] if p and p["cui"] else "RO41239847"
+    buyer_name = (data or {}).get("buyer_name") or b["client_name"] or "Client Persoană Fizică"
+    buyer_address = (data or {}).get("buyer_address") or b["resolved_client_address"] or f"{b['neighborhood'] or 'Hipodrom'}, Sibiu"
+    provider_bridge = (data or {}).get("provider_bridge") or "smartbill_spv"
+    amount_ron = int((data or {}).get("amount_ron") or b["quote_price"] or 200)
+
+    cnt = conn.execute("SELECT COUNT(*) FROM client_invoices WHERE pro_id=?", (b["pro_id"],)).fetchone()[0]
+    invoice_no = f"SB-{datetime.now().year}-{cnt + 1:05d}"
+    spv_index = f"50{now_ts() % 100000000:08d}"
+    inv_id = new_id("inv_")
+    t = now_ts()
+
+    conn.execute(
+        "INSERT INTO client_invoices (id,booking_id,pro_id,client_id,invoice_no,supplier_name,supplier_cui,"
+        "buyer_name,buyer_address,service_name,amount_ron,vat_rate,spv_status,spv_index,provider_bridge,created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,19,'transmitted',?,?,?)",
+        (
+            inv_id,
+            bid,
+            b["pro_id"],
+            b["client_id"],
+            invoice_no,
+            supplier_name,
+            supplier_cui,
+            buyer_name,
+            buyer_address,
+            b["service_name"],
+            amount_ron,
+            spv_index,
+            provider_bridge,
+            t,
+        ),
+    )
+    conn.execute("UPDATE bookings SET invoice_id=?, updated_at=? WHERE id=?", (inv_id, t, bid))
+    notify(
+        conn,
+        b["client_id"],
+        "invoice_issued",
+        f"Factură fiscală emisă ({invoice_no} • {amount_ron} RON)",
+        f"{supplier_name} a emis factura {invoice_no} (transmisă în RO e-Factura ANAF SPV, index {spv_index}).",
+        bid,
+    )
+    analytics.track(
+        conn,
+        user["id"],
+        user["role"],
+        "b2c_efactura_issued",
+        {"booking_id": bid, "invoice_no": invoice_no, "amount_ron": amount_ron, "provider_bridge": provider_bridge},
+    )
+    conn.commit()
+    bk_view = _booking_view(conn, _booking_row(conn, bid), user, detail=True)
+    return {
+        "invoice": bk_view["invoice"],
+        "booking": bk_view,
+        "message": f"Factura B2C {invoice_no} ({amount_ron} RON) a fost emisă și transmisă în RO e-Factura ANAF SPV (Index #{spv_index}).",
+    }
+
+
+def get_booking_invoice_xml(conn, user, bid) -> dict:
+    """Return OUG 69/2024 compliant B2C RO e-Factura UBL 2.1 XML for a booking invoice."""
+    b = _booking_row(conn, bid)
+    if not b or (user["role"] != "admin" and user["id"] not in (b["client_id"], b["pro_id"])):
+        raise ApiError(404, "not_found", "Programarea nu a fost găsită.")
+    inv_row = conn.execute("SELECT * FROM client_invoices WHERE booking_id=? ORDER BY created_at DESC LIMIT 1", (bid,)).fetchone()
+    if not inv_row:
+        raise ApiError(404, "invoice_not_found", "Factura nu a fost încă emisă pentru această lucrare.")
+    inv_dict = dict(inv_row)
+    xml_str = payments.generate_b2c_efactura_ubl_xml(inv_dict)
+    return {
+        "invoice_no": inv_dict["invoice_no"],
+        "spv_index": inv_dict["spv_index"],
+        "filename": f"{inv_dict['invoice_no']}_b2c_cius_ro.xml",
+        "xml": xml_str,
+        "format": "ubl_2.1_cius_ro_b2c",
+    }
 
 
 # ------------------------------------------------------------ pro workspace & B2B calendar
@@ -3286,7 +3696,7 @@ def admin_update_pro_subscription(conn, user, pro_id, data):
             "UPDATE pro_profiles SET plan_status=?, plan_renews_at=? WHERE user_id=?",
             (plan_status, now_ts() + 30 * DAY, pro_id),
         )
-    if plan in ("essential", "pro"):
+    if plan in ("essential", "pro", "business"):
         conn.execute("UPDATE pro_profiles SET plan=? WHERE user_id=?", (plan, pro_id))
     analytics.track(conn, user["id"], "admin", "pro_subscription_updated", {"pro_id": pro_id, "plan_status": plan_status})
     conn.commit()

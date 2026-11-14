@@ -50,11 +50,14 @@ CREATE TABLE IF NOT EXISTS pro_profiles (
   jobs_completed INTEGER NOT NULL DEFAULT 0,
   availability TEXT NOT NULL DEFAULT 'Disponibil astăzi',
   distance_km REAL NOT NULL DEFAULT 2.5,
-  plan TEXT NOT NULL DEFAULT 'essential' CHECK (plan IN ('essential','pro')),
+  plan TEXT NOT NULL DEFAULT 'essential' CHECK (plan IN ('essential','pro','business')),
   plan_status TEXT NOT NULL DEFAULT 'trial' CHECK (plan_status IN ('trial','active','past_due')),
   subscription_price_eur INTEGER NOT NULL DEFAULT 39,
   plan_renews_at INTEGER,
-  caen_code TEXT DEFAULT '4322'
+  caen_code TEXT DEFAULT '4322',
+  ai_receptionist_enabled INTEGER NOT NULL DEFAULT 0,
+  ai_greeting TEXT,
+  ai_auto_quote INTEGER NOT NULL DEFAULT 1
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pro_profiles_slug ON pro_profiles(slug);
 
@@ -112,6 +115,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   eta_minutes INTEGER,
   deposit_paid_ron INTEGER NOT NULL DEFAULT 0,
   cascaded_from_booking_id TEXT,
+  selected_tier TEXT,
+  invoice_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   completed_at INTEGER
@@ -132,6 +137,8 @@ CREATE TABLE IF NOT EXISTS estimates (
   proposed_end_at INTEGER NOT NULL,
   slot_label TEXT NOT NULL,
   pro_notes TEXT,
+  options_json TEXT,
+  selected_tier TEXT,
   status TEXT NOT NULL DEFAULT 'sent'
     CHECK (status IN ('sent','accepted','declined','expired','superseded')),
   expires_at INTEGER NOT NULL,
@@ -139,6 +146,44 @@ CREATE TABLE IF NOT EXISTS estimates (
   responded_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_estimates_booking ON estimates(booking_id, status);
+
+CREATE TABLE IF NOT EXISTS ai_receptionist_logs (
+  id TEXT PRIMARY KEY,
+  pro_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  channel TEXT NOT NULL CHECK (channel IN ('missed_call','whatsapp')),
+  caller_name TEXT NOT NULL,
+  caller_phone TEXT NOT NULL,
+  client_message TEXT NOT NULL,
+  neighborhood TEXT DEFAULT 'Sibiu',
+  matched_service_name TEXT NOT NULL,
+  quoted_price_ron INTEGER NOT NULL,
+  proposed_slot_label TEXT NOT NULL,
+  ai_reply TEXT NOT NULL,
+  booking_id TEXT REFERENCES bookings(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_rec_pro ON ai_receptionist_logs(pro_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS client_invoices (
+  id TEXT PRIMARY KEY,
+  booking_id TEXT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  pro_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  invoice_no TEXT NOT NULL,
+  supplier_name TEXT NOT NULL,
+  supplier_cui TEXT NOT NULL,
+  buyer_name TEXT NOT NULL,
+  buyer_address TEXT NOT NULL,
+  service_name TEXT NOT NULL,
+  amount_ron INTEGER NOT NULL CHECK (amount_ron > 0),
+  vat_rate INTEGER NOT NULL DEFAULT 19,
+  spv_status TEXT NOT NULL DEFAULT 'transmitted',
+  spv_index TEXT NOT NULL,
+  provider_bridge TEXT NOT NULL DEFAULT 'anaf_spv_direct',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_client_inv_booking ON client_invoices(booking_id);
+CREATE INDEX IF NOT EXISTS idx_client_inv_pro ON client_invoices(pro_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS sms_reminders (
   id TEXT PRIMARY KEY,
@@ -408,6 +453,16 @@ def init_db(db_path: str | None = None) -> None:
             conn.execute("ALTER TABLE bookings ADD COLUMN deposit_paid_ron INTEGER NOT NULL DEFAULT 0")
         if "cascaded_from_booking_id" not in cols_b:
             conn.execute("ALTER TABLE bookings ADD COLUMN cascaded_from_booking_id TEXT")
+        if "selected_tier" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN selected_tier TEXT")
+        if "invoice_id" not in cols_b:
+            conn.execute("ALTER TABLE bookings ADD COLUMN invoice_id TEXT")
+
+        cols_e = {r["name"] for r in conn.execute("PRAGMA table_info(estimates)").fetchall()}
+        if "options_json" not in cols_e:
+            conn.execute("ALTER TABLE estimates ADD COLUMN options_json TEXT")
+        if "selected_tier" not in cols_e:
+            conn.execute("ALTER TABLE estimates ADD COLUMN selected_tier TEXT")
 
         cols_s = {r["name"] for r in conn.execute("PRAGMA table_info(pro_services)").fetchall()}
         if "instant_book" not in cols_s:
@@ -420,7 +475,34 @@ def init_db(db_path: str | None = None) -> None:
             conn.execute("ALTER TABLE pro_profiles ADD COLUMN slug TEXT")
         if "caen_code" not in cols_p:
             conn.execute("ALTER TABLE pro_profiles ADD COLUMN caen_code TEXT DEFAULT '4322'")
+        if "ai_receptionist_enabled" not in cols_p:
+            conn.execute("ALTER TABLE pro_profiles ADD COLUMN ai_receptionist_enabled INTEGER NOT NULL DEFAULT 0")
+        if "ai_greeting" not in cols_p:
+            conn.execute("ALTER TABLE pro_profiles ADD COLUMN ai_greeting TEXT")
+        if "ai_auto_quote" not in cols_p:
+            conn.execute("ALTER TABLE pro_profiles ADD COLUMN ai_auto_quote INTEGER NOT NULL DEFAULT 1")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pro_profiles_slug ON pro_profiles(slug)")
+
+        # Ensure pro_profiles CHECK constraint supports 'business' plan on pre-existing DBs
+        pro_ddl = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='pro_profiles'"
+        ).fetchone()
+        if pro_ddl and pro_ddl["sql"] and "'business'" not in pro_ddl["sql"]:
+            conn.execute("ALTER TABLE pro_profiles RENAME TO pro_profiles_old")
+            conn.executescript(SCHEMA)
+            conn.execute(
+                "INSERT INTO pro_profiles (user_id,slug,company_name,cui,headline,bio,experience_years,city,"
+                "zones_json,hours_json,verification_status,verification_note,verified_at,onboarded_by_admin,"
+                "rating_avg,rating_count,jobs_completed,availability,distance_km,plan,plan_status,"
+                "subscription_price_eur,plan_renews_at,caen_code,ai_receptionist_enabled,ai_greeting,ai_auto_quote) "
+                "SELECT user_id,slug,company_name,cui,headline,bio,experience_years,city,"
+                "zones_json,hours_json,verification_status,verification_note,verified_at,onboarded_by_admin,"
+                "rating_avg,rating_count,jobs_completed,availability,distance_km,plan,plan_status,"
+                "subscription_price_eur,plan_renews_at,caen_code,ai_receptionist_enabled,ai_greeting,ai_auto_quote "
+                "FROM pro_profiles_old"
+            )
+            conn.execute("DROP TABLE pro_profiles_old")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_pro_profiles_slug ON pro_profiles(slug)")
 
         # Ensure sms_reminders CHECK constraint supports 'on_my_way' on pre-existing DBs
         sms_ddl = conn.execute(

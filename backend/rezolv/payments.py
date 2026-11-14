@@ -19,12 +19,38 @@ PLANS = {
         "price_eur": 10,
         "price_ron": 49,
         "commission_pct": 0,
+        "tier_level": 1,
+        "features": [
+            "Profil public verificat CUI & insignă CAEN Rev.2",
+            "Agendă digitală + până la 15 cereri/lună în Sibiu",
+            "Deviz simplu (1 preț) + Remindere SMS/WhatsApp",
+        ],
     },
     "pro": {
         "name": "CRM Pro Promovat Sibiu + SMS Anti No-Show (39 EUR / 195 RON)",
         "price_eur": 39,
         "price_ron": 195,
         "commission_pct": 0,
+        "tier_level": 2,
+        "features": [
+            "Totul din Essential + Cereri nelimitate în Sibiu",
+            "Insignă ★ Recomandat & prioritate în Smart Fallback Cascade",
+            "Instant Book + Portofoliu Înainte/După + Recenzii Externe",
+            "Devize cu 3 variante (Standard / Recomandat / Premium)",
+        ],
+    },
+    "business": {
+        "name": "Business AI Autopilot Sibiu — Recepționer AI WhatsApp/Apeluri + e-Factura B2C (69 EUR / 349 RON)",
+        "price_eur": 69,
+        "price_ron": 349,
+        "commission_pct": 0,
+        "tier_level": 3,
+        "features": [
+            "Totul din Pro + Afișare Top Promovat în Sibiu",
+            "🤖 REZOLV Recepționer AI 24/7 (Apeluri Pierdute & WhatsApp)",
+            "🧾 Facturare B2C & RO e-Factura ANAF SPV cu 1 Click (OUG 69/2024)",
+            "Suport multi-echipă și preluare automată a urgențelor",
+        ],
     },
 }
 
@@ -216,6 +242,83 @@ def generate_efactura_ubl_xml(payment: dict, supplier_cui: str = "RO39204176", b
     <cbc:LineExtensionAmount currencyID="RON">{net_amount:.2f}</cbc:LineExtensionAmount>
     <cac:Item>
       <cbc:Name>Abonament lunar REZOLV B2B SaaS (0% comision)</cbc:Name>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="RON">{net_amount:.2f}</cbc:PriceAmount>
+    </cac:Price>
+  </cac:InvoiceLine>
+</Invoice>"""
+
+
+def generate_b2c_efactura_ubl_xml(inv: dict) -> str:
+    """Wave 3.2: Generate OUG 69/2024 compliant B2C RO e-Factura UBL 2.1 (CIUS-RO) XML for home repair jobs."""
+    inv_no = inv.get("invoice_no") or "SRV-SIBIU-0001"
+    amount = float(inv.get("amount_ron", 200))
+    vat_rate = int(inv.get("vat_rate", 19))
+    net_amount = round(amount / (1 + vat_rate / 100), 2)
+    vat_amount = round(amount - net_amount, 2)
+    issue_date = date.today().isoformat()
+    supplier_name = inv.get("supplier_name") or "MEȘTER VERIFICAT SIBIU S.R.L."
+    supplier_cui = inv.get("supplier_cui") or "RO41239847"
+    buyer_name = inv.get("buyer_name") or "Client Persoană Fizică"
+    buyer_address = inv.get("buyer_address") or "Sibiu, Jud. Sibiu, România"
+    service_name = inv.get("service_name") or "Intervenție reparații casnice Sibiu"
+
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:efactura.mfinante.ro:CIUS-RO:1.0.1</cbc:CustomizationID>
+  <cbc:ID>{inv_no}</cbc:ID>
+  <cbc:IssueDate>{issue_date}</cbc:IssueDate>
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>RON</cbc:DocumentCurrencyCode>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>{supplier_name}</cbc:RegistrationName>
+        <cbc:CompanyID>{supplier_cui}</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cac:PostalAddress>
+        <cbc:StreetName>{buyer_address}</cbc:StreetName>
+        <cbc:CityName>Sibiu</cbc:CityName>
+        <cbc:CountrySubentity>RO-SB</cbc:CountrySubentity>
+        <cac:Country><cbc:IdentificationCode>RO</cbc:IdentificationCode></cac:Country>
+      </cac:PostalAddress>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>{buyer_name}</cbc:RegistrationName>
+        <cbc:CompanyID>0000000000000</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:TaxTotal>
+    <cbc:TaxAmount currencyID="RON">{vat_amount:.2f}</cbc:TaxAmount>
+    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="RON">{net_amount:.2f}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="RON">{vat_amount:.2f}</cbc:TaxAmount>
+      <cac:TaxCategory>
+        <cbc:ID>S</cbc:ID>
+        <cbc:Percent>{vat_rate}</cbc:Percent>
+        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+      </cac:TaxCategory>
+    </cac:TaxSubtotal>
+  </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="RON">{net_amount:.2f}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="RON">{net_amount:.2f}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="RON">{amount:.2f}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="RON">{amount:.2f}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="H87">1</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="RON">{net_amount:.2f}</cbc:LineExtensionAmount>
+    <cac:Item>
+      <cbc:Name>{service_name}</cbc:Name>
     </cac:Item>
     <cac:Price>
       <cbc:PriceAmount currencyID="RON">{net_amount:.2f}</cbc:PriceAmount>
